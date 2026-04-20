@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+	<meta charset="UTF-8" />
+	<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+	<title>Smartx TV - Home</title>
+	<link rel="preconnect" href="https://fonts.googleapis.com" />
+	<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+	<link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+	<link rel="stylesheet" href="assets/style.css" />
+</head>
+<body>
+	<div class="grain-layer" aria-hidden="true"></div>
+
+	<div class="tv-shell">
+		<header class="app-header panel" aria-label="Barra principal">
+			<div class="brand-block">
+				<div class="brand-mark">S</div>
+				<div>
+					<p class="brand-title">Smartx TV</p>
+				</div>
+			</div>
+
+			<nav class="header-nav" aria-label="Menu horizontal">
+				<button class="menu-item" data-focusable="true" data-action="section" data-section="inicio">Inicio</button>
+				<button class="menu-item is-active" data-focusable="true" data-action="section" data-section="canais">Canais</button>
+				<button class="menu-item" data-focusable="true" data-action="section" data-section="minha-lista">Minha lista</button>
+				<button class="menu-item" data-focusable="true" data-action="section" data-section="series">Series</button>
+				<button class="menu-item" data-focusable="true" data-action="section" data-section="filmes">Filmes</button>
+				<button class="menu-item menu-item-roadmap" data-focusable="true" data-action="section" data-section="videoconferencia">Videoconferencia</button>
+			</nav>
+
+			<div class="header-actions">
+				<button class="search-btn" data-focusable="true" data-action="roadmap" data-feature="search" aria-label="Abrir busca">
+					<svg viewBox="0 0 24 24" aria-hidden="true">
+						<circle cx="11" cy="11" r="7"></circle>
+						<line x1="16.65" y1="16.65" x2="21" y2="21"></line>
+					</svg>
+				</button>
+
+				<div class="profile-chip" data-focusable="true" data-action="roadmap" data-feature="perfil-nuvem" role="button" tabindex="0" aria-label="Abrir perfil na nuvem">
+					<p class="profile-name">Davi</p>
+					<img src="https://picsum.photos/seed/smartx-profile/96/96" alt="Avatar de Davi" />
+				</div>
+			</div>
+		</header>
+
+		<main class="dashboard panel" aria-label="Conteudo principal">
+			<header class="topbar">
+				<button id="details-back-btn-top" class="details-topbar-back" data-focusable="false" data-group="content" data-action="details-back" aria-label="Voltar para canais">&#10094;</button>
+				<div>
+					<h1 id="section-title">Canais em destaque hoje</h1>
+				</div>
+			</header>
+
+			<section id="dashboard-content" class="dashboard-content" aria-live="polite"></section>
+		</main>
+	</div>
+
+	<div id="toast" class="toast" role="status" aria-live="polite"></div>
+
+	<script src="assets/script.js"></script>
+</body>
+</html>
