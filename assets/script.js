@@ -298,6 +298,20 @@ function getChannelById(channelId) {
   return appState.channels.find((channel) => channel.id === channelId) || null;
 }
 
+function syncActiveChannelBackground(channelId = appState.selectedChannelId) {
+  const channel = getChannelById(channelId);
+  if (!channel) {
+    ui.dashboard?.style.removeProperty("--active-channel-bg");
+    return;
+  }
+
+  const nextBackground = channel.backgroundImage;
+
+  if (nextBackground) {
+    ui.dashboard?.style.setProperty("--active-channel-bg", `url('${nextBackground}')`);
+  }
+}
+
 function getSelectedProgramIndex(channelId, programs) {
   const stored = appState.selectedProgramByChannel[channelId];
   const fallback = 0;
@@ -393,7 +407,6 @@ function renderChannelRowsSection() {
           const channelId = `channel-${channel.id}`;
           const schedule = getChannelProgramming(channel);
           const selectedProgramIndex = getSelectedProgramIndex(channel.id, schedule);
-          const selectedProgram = schedule[selectedProgramIndex] || schedule[0];
           const activeClass = channel.id === appState.selectedChannelId ? "is-active" : "";
 
           return `
@@ -401,7 +414,7 @@ function renderChannelRowsSection() {
               class="channel-hero-section ${activeClass}"
               id="${channelId}"
               data-channel-section="${channel.id}"
-              style="--channel-bg: url('${selectedProgram.image || channel.backgroundImage}')"
+              style="--channel-bg: url('${channel.backgroundImage}')"
             >
               <div class="channel-hero-left">
                 <h3>${channel.title}</h3>
@@ -656,6 +669,8 @@ function renderDashboardContent() {
   }
 
   if (appState.activeSection === "canais") {
+    syncActiveChannelBackground();
+
     if (appState.channelViewMode === "channel-details") {
       ui.dashboardContent.innerHTML = renderChannelDetailsView();
       setupAllCarousels();
@@ -801,7 +816,6 @@ function selectProgramCard(channelId, programIndex, programImage) {
   }
 
   appState.selectedProgramByChannel[channelId] = programIndex;
-  selectChannel(channelId, false);
 
   if (appState.channelViewMode === "channel-details" && appState.detailChannelId === channelId) {
     const schedule = getChannelProgramming(channel);
@@ -839,11 +853,6 @@ function selectProgramCard(channelId, programIndex, programImage) {
 
     return;
   }
-
-  const bgValue = `url('${programImage}')`;
-  document.querySelectorAll(`[data-channel-section="${channelId}"]`).forEach((section) => {
-    section.style.setProperty("--channel-bg", bgValue);
-  });
 
   document.querySelectorAll(`[data-program-card][data-channel-id="${channelId}"]`).forEach((card) => {
     card.classList.toggle("is-selected", Number(card.dataset.programIndex) === programIndex);
@@ -889,6 +898,8 @@ function selectChannel(channelId, shouldScrollToSection = false) {
   document.querySelectorAll("[data-channel-section]").forEach((section) => {
     section.classList.toggle("is-active", section.dataset.channelSection === channelId);
   });
+
+  syncActiveChannelBackground(channelId);
 
   if (shouldScrollToSection) {
     const targetSection = document.getElementById(`channel-${channelId}`);
