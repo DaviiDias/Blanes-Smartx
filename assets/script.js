@@ -109,6 +109,8 @@ const appState = {
   channels: [],
   selectedChannelId: null,
   detailChannelId: null,
+  programDetailReturnMode: "browse",
+  programPlayerReturnMode: "browse",
   selectedProgramByChannel: {},
   metrics: null,
   focusGroup: "menu",
@@ -126,7 +128,8 @@ const ui = {
 
 const routeKeys = {
   view: "view",
-  channel: "channel"
+  channel: "channel",
+  program: "program"
 };
 
 const channelProgramming = {
@@ -574,6 +577,171 @@ function renderChannelDetailsView() {
   `;
 }
 
+function renderProgramDetailsView() {
+  const channel = getChannelById(appState.detailChannelId);
+  if (!channel) {
+    return renderStateBox({
+      title: "Programa nao encontrado",
+      description: "Nao foi possivel abrir os detalhes deste programa."
+    });
+  }
+
+  const schedule = getChannelProgramming(channel);
+  const selectedProgramIndex = getSelectedProgramIndex(channel.id, schedule);
+  const selectedProgram = schedule[selectedProgramIndex] || schedule[0];
+  const isLive = selectedProgram.status === "live";
+
+  ui.dashboard?.style.setProperty("--details-bg", `url('${selectedProgram.image || channel.backgroundImage}')`);
+
+  return `
+    <section class="program-details-view">
+      <section class="program-details-hero-shell" data-program-hero data-channel-id="${channel.id}">
+        <div class="program-details-hero-gap" aria-hidden="true"></div>
+        <section class="program-details-overlay">
+          <span class="program-status ${isLive ? "is-live" : "is-soon"}">${selectedProgram.statusLabel}</span>
+          <h2>${selectedProgram.title}</h2>
+          <span class="program-format-chip">HD</span>
+          <p>${selectedProgram.timeInfo}</p>
+          <div class="program-action-row">
+            ${isLive ? `<button class="program-watch-btn" data-focusable="true" data-group="content" data-action="watch-program" data-channel-id="${channel.id}" data-program-index="${selectedProgramIndex}">Assistir</button>` : ""}
+            <button class="program-star-btn" data-focusable="true" data-group="content" data-action="toggle-watchlist" data-channel-id="${channel.id}" data-program-index="${selectedProgramIndex}" aria-label="Adicionar programa à lista">
+              <span aria-hidden="true">☆</span>
+            </button>
+          </div>
+        </section>
+      </section>
+
+      <section class="program-details-body">
+        <section class="program-details-panel" aria-label="Detalhes do programa">
+          <h3 class="details-section-title">Detalhes</h3>
+          <div class="program-detail-card">
+            <div class="program-detail-summary">
+              <h4>${selectedProgram.title}</h4>
+              <p>${isLive ? `Transmissao ao vivo no canal ${channel.title}.` : `Programa em exibição futura no canal ${channel.title}.`}</p>
+            </div>
+
+            <dl class="program-detail-meta">
+              <div>
+                <dt>Canal</dt>
+                <dd>${channel.title}</dd>
+              </div>
+              <div>
+                <dt>Categoria</dt>
+                <dd>${channel.genre}</dd>
+              </div>
+              <div>
+                <dt>Formato</dt>
+                <dd>HD</dd>
+              </div>
+              <div>
+                <dt>Disponibilidade</dt>
+                <dd>${isLive ? "Assistir agora" : "Em breve"}</dd>
+              </div>
+            </dl>
+          </div>
+        </section>
+      </section>
+    </section>
+  `;
+}
+
+function renderProgramPlayerView() {
+  const channel = getChannelById(appState.detailChannelId);
+  if (!channel) {
+    return renderStateBox({
+      title: "Player indisponivel",
+      description: "Nao foi possivel abrir o player deste programa."
+    });
+  }
+
+  const schedule = getChannelProgramming(channel);
+  const selectedProgramIndex = getSelectedProgramIndex(channel.id, schedule);
+  const selectedProgram = schedule[selectedProgramIndex] || schedule[0];
+  const streamUrl = selectedProgram.streamUrl || "https://stream.mux.com/BV3YZtogl89mg9VcNBhhnHm02Y34zI1nlMuMQfAbl3dM/highest.mp4";
+  const posterUrl = selectedProgram.poster || selectedProgram.image || channel.backgroundImage;
+
+  ui.dashboard?.style.setProperty("--details-bg", `url('${posterUrl}')`);
+
+  return `
+    <section class="program-player-view" data-program-player data-channel-id="${channel.id}">
+      <section class="program-player-shell">
+        <video-player class="program-player-stage">
+          <media-container class="media-default-skin media-default-skin--video program-player-media">
+            <video src="${streamUrl}" playsinline autoplay muted poster="${posterUrl}"></video>
+
+            <media-poster>
+              <img src="${posterUrl}" alt="${selectedProgram.title}" />
+            </media-poster>
+
+            <media-controls class="media-surface media-controls">
+              <media-tooltip-group>
+                <div class="media-button-group">
+                  <media-play-button class="media-button media-button--subtle media-button--icon media-button--play">
+                    <svg class="media-icon media-icon--play" xmlns="http://www.w3.org/2000/svg" width="18" height="18" fill="none" aria-hidden="true" viewBox="0 0 18 18"><path fill="currentColor" d="m14.051 10.723-7.985 4.964a1.98 1.98 0 0 1-2.758-.638A2.06 2.06 0 0 1 3 13.964V4.036C3 2.91 3.895 2 5 2c.377 0 .747.109 1.066.313l7.985 4.964a2.057 2.057 0 0 1 .627 2.808c-.16.257-.373.475-.627.637"/></svg>
+                    <svg class="media-icon media-icon--pause" xmlns="http://www.w3.org/2000/svg" width="18" height="18" fill="none" aria-hidden="true" viewBox="0 0 18 18"><rect width="5" height="14" x="2" y="2" fill="currentColor" rx="1.75"/><rect width="5" height="14" x="11" y="2" fill="currentColor" rx="1.75"/></svg>
+                  </media-play-button>
+
+                  <media-seek-button seconds="-10" class="media-button media-button--subtle media-button--icon media-button--seek">
+                    <span class="media-icon__container">
+                      <svg class="media-icon media-icon--seek media-icon--flipped" xmlns="http://www.w3.org/2000/svg" width="18" height="18" fill="none" aria-hidden="true" viewBox="0 0 18 18"><path fill="currentColor" d="M1 9c0 2.21.895 4.21 2.343 5.657l1.414-1.414a6 6 0 1 1 8.956-7.956l-1.286 1.286a.25.25 0 0 0 .177.427h4.146a.25.25 0 0 0 .25-.25V2.604a.25.25 0 0 0-.427-.177l-1.438 1.438A8 8 0 0 0 1 9"/></svg>
+                      <span class="media-icon__label">10</span>
+                    </span>
+                  </media-seek-button>
+
+                  <media-seek-button seconds="10" class="media-button media-button--subtle media-button--icon media-button--seek">
+                    <span class="media-icon__container">
+                      <svg class="media-icon media-icon--seek" xmlns="http://www.w3.org/2000/svg" width="18" height="18" fill="none" aria-hidden="true" viewBox="0 0 18 18"><path fill="currentColor" d="M1 9c0 2.21.895 4.21 2.343 5.657l1.414-1.414a6 6 0 1 1 8.956-7.956l-1.286 1.286a.25.25 0 0 0 .177.427h4.146a.25.25 0 0 0 .25-.25V2.604a.25.25 0 0 0-.427-.177l-1.438 1.438A8 8 0 0 0 1 9"/></svg>
+                      <span class="media-icon__label">10</span>
+                    </span>
+                  </media-seek-button>
+                </div>
+
+                <div class="media-time-controls">
+                  <media-time type="current" class="media-time"></media-time>
+                  <media-time-slider class="media-slider">
+                    <media-slider-track class="media-slider__track">
+                      <media-slider-fill class="media-slider__fill"></media-slider-fill>
+                      <media-slider-buffer class="media-slider__buffer"></media-slider-buffer>
+                    </media-slider-track>
+                    <media-slider-thumb class="media-slider__thumb"></media-slider-thumb>
+                  </media-time-slider>
+                  <media-time type="duration" class="media-time"></media-time>
+                </div>
+
+                <div class="media-button-group">
+                  <media-mute-button class="media-button media-button--subtle media-button--icon media-button--mute">
+                    <svg class="media-icon media-icon--volume-off" xmlns="http://www.w3.org/2000/svg" width="18" height="18" fill="none" aria-hidden="true" viewBox="0 0 18 18"><path fill="currentColor" d="M.714 6.008h3.072l4.071-3.857c.5-.376 1.143 0 1.143.601V15.28c0 .602-.643.903-1.143.602l-4.071-3.858H.714c-.428 0-.714-.3-.714-.752V6.76c0-.451.286-.752.714-.752M14.5 7.586l-1.768-1.768a1 1 0 1 0-1.414 1.414L13.085 9l-1.767 1.768a1 1 0 0 0 1.414 1.414l1.768-1.768 1.768 1.768a1 1 0 0 0 1.414-1.414L15.914 9l1.768-1.768a1 1 0 0 0-1.414-1.414z"/></svg>
+                    <svg class="media-icon media-icon--volume-high" xmlns="http://www.w3.org/2000/svg" width="18" height="18" fill="none" aria-hidden="true" viewBox="0 0 18 18"><path fill="currentColor" d="M15.6 3.3c-.4-.4-1-.4-1.4 0s-.4 1 0 1.4C15.4 5.9 16 7.4 16 9s-.6 3.1-1.8 4.3c-.4.4-.4 1 0 1.4.2.2.5.3.7.3.3 0 .5-.1.7-.3C17.1 13.2 18 11.2 18 9s-.9-4.2-2.4-5.7"/><path fill="currentColor" d="M.714 6.008h3.072l4.071-3.857c.5-.376 1.143 0 1.143.601V15.28c0 .602-.643.903-1.143.602l-4.071-3.858H.714c-.428 0-.714-.3-.714-.752V6.76c0-.451.286-.752.714-.752"/></svg>
+                  </media-mute-button>
+
+                  <media-fullscreen-button class="media-button media-button--subtle media-button--icon media-button--fullscreen">
+                    <svg class="media-icon media-icon--fullscreen-enter" xmlns="http://www.w3.org/2000/svg" width="18" height="18" fill="none" aria-hidden="true" viewBox="0 0 18 18"><path fill="currentColor" d="M9.57 3.617A1 1 0 0 0 8.646 3H4c-.552 0-1 .449-1 1v4.646a.996.996 0 0 0 1.001 1 1 1 0 0 0 .706-.293l4.647-4.647a1 1 0 0 0 .216-1.089m4.812 4.812a1 1 0 0 0-1.089.217l-4.647 4.647a.998.998 0 0 0 .708 1.706H14c.552 0 1-.449 1-1V9.353a1 1 0 0 0-.618-.924"/></svg>
+                    <svg class="media-icon media-icon--fullscreen-exit" xmlns="http://www.w3.org/2000/svg" width="18" height="18" fill="none" aria-hidden="true" viewBox="0 0 18 18"><path fill="currentColor" d="M7.883 1.93a.99.99 0 0 0-1.09.217L2.146 6.793A.998.998 0 0 0 2.853 8.5H7.5c.551 0 1-.449 1-1V2.854a1 1 0 0 0-.617-.924m7.263 7.57H10.5c-.551 0-1 .449-1 1v4.646a.996.996 0 0 0 1.001 1.001 1 1 0 0 0 .706-.293l4.646-4.646a.998.998 0 0 0-.707-1.707z"/></svg>
+                  </media-fullscreen-button>
+                </div>
+              </media-tooltip-group>
+            </media-controls>
+
+            <media-hotkey keys="Space" action="togglePaused"></media-hotkey>
+            <media-hotkey keys="k" action="togglePaused"></media-hotkey>
+            <media-hotkey keys="f" action="toggleFullscreen"></media-hotkey>
+            <media-hotkey keys="l" action="seekStep" value="10"></media-hotkey>
+            <media-hotkey keys="j" action="seekStep" value="-10"></media-hotkey>
+            <media-hotkey keys="ArrowRight" action="seekStep" value="10"></media-hotkey>
+            <media-hotkey keys="ArrowLeft" action="seekStep" value="-10"></media-hotkey>
+
+            <media-gesture type="doubletap" action="seekStep" value="-10" region="left"></media-gesture>
+            <media-gesture type="doubletap" action="toggleFullscreen" region="center"></media-gesture>
+            <media-gesture type="doubletap" action="seekStep" value="10" region="right"></media-gesture>
+          </media-container>
+        </video-player>
+
+        <div class="program-player-gradient" aria-hidden="true"></div>
+      </section>
+    </section>
+  `;
+}
+
 function renderPlaceholderSection(section) {
   const map = {
     "minha-lista": {
@@ -642,23 +810,27 @@ function renderPlaceholderSection(section) {
 function renderDashboardContent() {
   const meta = sectionMeta[appState.activeSection] || sectionMeta.canais;
   const detailsChannel = getChannelById(appState.detailChannelId);
-  const isDetailsMode = appState.activeSection === "canais" && appState.channelViewMode === "channel-details" && Boolean(detailsChannel);
+  const isDetailsMode = appState.activeSection === "canais" && (appState.channelViewMode === "channel-details" || appState.channelViewMode === "program-details") && Boolean(detailsChannel);
+  const isPlayerMode = appState.activeSection === "canais" && appState.channelViewMode === "program-player" && Boolean(detailsChannel);
+  const schedule = detailsChannel ? getChannelProgramming(detailsChannel) : [];
+  const selectedProgramIndex = detailsChannel ? getSelectedProgramIndex(detailsChannel.id, schedule) : 0;
+  const selectedProgram = detailsChannel && schedule.length ? schedule[selectedProgramIndex] || schedule[0] : null;
 
-  ui.sectionTitle.textContent = isDetailsMode ? detailsChannel.title : meta.title;
+  ui.sectionTitle.textContent = isPlayerMode && selectedProgram ? selectedProgram.title : isDetailsMode ? detailsChannel.title : meta.title;
   document.body.classList.toggle("is-details-mode", isDetailsMode);
+  document.body.classList.toggle("is-player-mode", isPlayerMode);
   ui.topbar?.classList.toggle("is-details-topbar", isDetailsMode);
+  ui.topbar?.classList.toggle("is-player-topbar", isPlayerMode);
   ui.dashboard?.classList.toggle("is-details-dashboard", isDetailsMode);
+  ui.dashboard?.classList.toggle("is-player-dashboard", isPlayerMode);
 
   if (ui.detailsBackTop) {
-    ui.detailsBackTop.classList.toggle("is-visible", isDetailsMode);
-    ui.detailsBackTop.dataset.focusable = isDetailsMode ? "true" : "false";
+    ui.detailsBackTop.classList.toggle("is-visible", isDetailsMode || isPlayerMode);
+    ui.detailsBackTop.dataset.focusable = isDetailsMode || isPlayerMode ? "true" : "false";
   }
 
-  if (isDetailsMode) {
-    const schedule = getChannelProgramming(detailsChannel);
-    const selectedProgramIndex = getSelectedProgramIndex(detailsChannel.id, schedule);
-    const selectedProgram = schedule[selectedProgramIndex] || schedule[0];
-    ui.dashboard?.style.setProperty("--details-bg", `url('${selectedProgram.image || detailsChannel.backgroundImage}')`);
+  if (isDetailsMode || isPlayerMode) {
+    ui.dashboard?.style.setProperty("--details-bg", `url('${selectedProgram?.image || detailsChannel.backgroundImage}')`);
   } else {
     ui.dashboard?.style.removeProperty("--details-bg");
   }
@@ -674,6 +846,10 @@ function renderDashboardContent() {
     if (appState.channelViewMode === "channel-details") {
       ui.dashboardContent.innerHTML = renderChannelDetailsView();
       setupAllCarousels();
+    } else if (appState.channelViewMode === "program-details") {
+      ui.dashboardContent.innerHTML = renderProgramDetailsView();
+    } else if (appState.channelViewMode === "program-player") {
+      ui.dashboardContent.innerHTML = renderProgramPlayerView();
     } else {
       ui.dashboardContent.innerHTML = renderChannelsSection();
       setupAllCarousels();
@@ -695,7 +871,8 @@ function getRouteStateFromUrl() {
   const params = new URLSearchParams(window.location.search);
   return {
     view: params.get(routeKeys.view),
-    channelId: params.get(routeKeys.channel)
+    channelId: params.get(routeKeys.channel),
+    programIndex: params.get(routeKeys.program)
   };
 }
 
@@ -705,9 +882,23 @@ function syncUrlWithState({ replace = false } = {}) {
   if (appState.activeSection === "canais" && appState.channelViewMode === "channel-details" && appState.detailChannelId) {
     nextUrl.searchParams.set(routeKeys.view, "details");
     nextUrl.searchParams.set(routeKeys.channel, appState.detailChannelId);
+    nextUrl.searchParams.delete(routeKeys.program);
+  } else if (appState.activeSection === "canais" && appState.channelViewMode === "program-details" && appState.detailChannelId) {
+    nextUrl.searchParams.set(routeKeys.view, "program-details");
+    nextUrl.searchParams.set(routeKeys.channel, appState.detailChannelId);
+    const routeChannel = getChannelById(appState.detailChannelId);
+    const routeSchedule = routeChannel ? getChannelProgramming(routeChannel) : [];
+    nextUrl.searchParams.set(routeKeys.program, String(getSelectedProgramIndex(appState.detailChannelId, routeSchedule)));
+  } else if (appState.activeSection === "canais" && appState.channelViewMode === "program-player" && appState.detailChannelId) {
+    nextUrl.searchParams.set(routeKeys.view, "player");
+    nextUrl.searchParams.set(routeKeys.channel, appState.detailChannelId);
+    const routeChannel = getChannelById(appState.detailChannelId);
+    const routeSchedule = routeChannel ? getChannelProgramming(routeChannel) : [];
+    nextUrl.searchParams.set(routeKeys.program, String(getSelectedProgramIndex(appState.detailChannelId, routeSchedule)));
   } else {
     nextUrl.searchParams.delete(routeKeys.view);
     nextUrl.searchParams.delete(routeKeys.channel);
+    nextUrl.searchParams.delete(routeKeys.program);
   }
 
   const next = `${nextUrl.pathname}${nextUrl.search}${nextUrl.hash}`;
@@ -726,12 +917,47 @@ function syncUrlWithState({ replace = false } = {}) {
 
 function applyRouteStateFromUrl() {
   const routeState = getRouteStateFromUrl();
+  if (routeState.view === "player" && routeState.channelId) {
+    const channel = getChannelById(routeState.channelId);
+    if (channel) {
+      const schedule = getChannelProgramming(channel);
+      const programIndex = Number(routeState.programIndex);
+      appState.activeSection = "canais";
+      appState.channelViewMode = "program-player";
+      appState.detailChannelId = channel.id;
+      appState.programPlayerReturnMode = "program-details";
+      appState.selectedChannelId = channel.id;
+      appState.selectedProgramByChannel[channel.id] = Number.isInteger(programIndex) ? Math.max(0, Math.min(programIndex, schedule.length - 1)) : 0;
+      setMenuActive("canais");
+      return true;
+    }
+  }
+
+  if (routeState.view === "program-details" && routeState.channelId) {
+    const channel = getChannelById(routeState.channelId);
+    if (channel) {
+      const schedule = getChannelProgramming(channel);
+      const programIndex = Number(routeState.programIndex);
+      appState.activeSection = "canais";
+      appState.channelViewMode = "program-details";
+      appState.detailChannelId = channel.id;
+      appState.programDetailReturnMode = "browse";
+      appState.programPlayerReturnMode = "browse";
+      appState.selectedChannelId = channel.id;
+      appState.selectedProgramByChannel[channel.id] = Number.isInteger(programIndex) ? Math.max(0, Math.min(programIndex, schedule.length - 1)) : 0;
+      setMenuActive("canais");
+      return true;
+    }
+  }
+
   if (routeState.view === "details" && routeState.channelId) {
     const channel = getChannelById(routeState.channelId);
     if (channel) {
       appState.activeSection = "canais";
       appState.channelViewMode = "channel-details";
       appState.detailChannelId = channel.id;
+      appState.programDetailReturnMode = "browse";
+      appState.programPlayerReturnMode = "browse";
       appState.selectedChannelId = channel.id;
       setMenuActive("canais");
       return true;
@@ -740,6 +966,8 @@ function applyRouteStateFromUrl() {
 
   appState.channelViewMode = "browse";
   appState.detailChannelId = null;
+  appState.programDetailReturnMode = "browse";
+  appState.programPlayerReturnMode = "browse";
   setMenuActive(appState.activeSection);
   return false;
 }
@@ -817,56 +1045,21 @@ function selectProgramCard(channelId, programIndex, programImage) {
 
   appState.selectedProgramByChannel[channelId] = programIndex;
 
-  if (appState.channelViewMode === "channel-details" && appState.detailChannelId === channelId) {
-    const schedule = getChannelProgramming(channel);
-    const selectedProgram = schedule[programIndex] || schedule[0];
-
-    if (selectedProgram) {
-      ui.dashboard?.style.setProperty("--details-bg", `url('${selectedProgram.image || channel.backgroundImage}')`);
-
-      const detailsContent = document.querySelector(".details-overlay-content");
-      if (detailsContent) {
-        const statusNode = detailsContent.querySelector(".program-status");
-        const titleNode = detailsContent.querySelector("h2");
-        const timeNode = detailsContent.querySelector("p");
-
-        if (statusNode) {
-          const isLive = selectedProgram.status === "live";
-          statusNode.textContent = isLive ? "AO VIVO" : "Em breve";
-          statusNode.classList.toggle("is-live", isLive);
-          statusNode.classList.toggle("is-soon", !isLive);
-        }
-
-        if (titleNode) {
-          titleNode.textContent = selectedProgram.title;
-        }
-
-        if (timeNode) {
-          timeNode.textContent = selectedProgram.timeInfo;
-        }
-      }
-    }
-
-    document.querySelectorAll(`[data-program-card][data-channel-id="${channelId}"]`).forEach((card) => {
-      card.classList.toggle("is-selected", Number(card.dataset.programIndex) === programIndex);
-    });
-
-    return;
-  }
-
-  document.querySelectorAll(`[data-program-card][data-channel-id="${channelId}"]`).forEach((card) => {
-    card.classList.toggle("is-selected", Number(card.dataset.programIndex) === programIndex);
-  });
+  openProgramDetails(channelId, programIndex);
 }
 
-function openChannelDetails(channelId) {
+function openProgramDetails(channelId, programIndex) {
   const channel = getChannelById(channelId);
   if (!channel) {
     return;
   }
 
-  appState.channelViewMode = "channel-details";
+  appState.programDetailReturnMode = appState.channelViewMode === "channel-details" ? "channel-details" : "browse";
+  appState.programPlayerReturnMode = "browse";
+  appState.channelViewMode = "program-details";
   appState.detailChannelId = channelId;
+  appState.selectedChannelId = channelId;
+  appState.selectedProgramByChannel[channelId] = programIndex;
   setMenuActive("canais");
   renderDashboardContent();
   syncUrlWithState();
@@ -877,11 +1070,72 @@ function openChannelDetails(channelId) {
   appState.focusIndex = -1;
 }
 
-function closeChannelDetails() {
-  appState.channelViewMode = "browse";
-  appState.detailChannelId = null;
+function openProgramPlayer(channelId, programIndex) {
+  const channel = getChannelById(channelId);
+  if (!channel) {
+    return;
+  }
+
+  appState.programPlayerReturnMode = "program-details";
+  appState.channelViewMode = "program-player";
+  appState.detailChannelId = channelId;
+  appState.selectedChannelId = channelId;
+  appState.selectedProgramByChannel[channelId] = programIndex;
+  setMenuActive("canais");
+  renderDashboardContent();
+  syncUrlWithState();
+  window.scrollTo({ top: 0, behavior: "auto" });
+  document.querySelectorAll(".is-focused").forEach((node) => node.classList.remove("is-focused"));
+  ui.detailsBackTop?.focus();
+  appState.focusGroup = "content";
+  appState.focusIndex = -1;
+}
+
+function openChannelDetails(channelId) {
+  const channel = getChannelById(channelId);
+  if (!channel) {
+    return;
+  }
+
+  appState.channelViewMode = "channel-details";
+  appState.detailChannelId = channelId;
+  appState.programDetailReturnMode = "browse";
+  setMenuActive("canais");
+  renderDashboardContent();
+  syncUrlWithState();
+  window.scrollTo({ top: 0, behavior: "auto" });
+  document.querySelectorAll(".is-focused").forEach((node) => node.classList.remove("is-focused"));
+  ui.detailsBackTop?.focus();
+  appState.focusGroup = "content";
+  appState.focusIndex = -1;
+}
+
+function closeDetailsView() {
+  if (appState.channelViewMode === "program-player") {
+    appState.channelViewMode = appState.programPlayerReturnMode === "program-details" ? "program-details" : "browse";
+    if (appState.channelViewMode !== "program-details") {
+      appState.detailChannelId = null;
+      appState.programDetailReturnMode = "browse";
+    }
+    renderDashboardContent();
+    syncUrlWithState({ replace: true });
+    return;
+  }
+
+  if (appState.channelViewMode === "program-details" && appState.programDetailReturnMode === "channel-details") {
+    appState.channelViewMode = "channel-details";
+  } else {
+    appState.channelViewMode = "browse";
+    appState.detailChannelId = null;
+    appState.programDetailReturnMode = "browse";
+  }
+
   renderDashboardContent();
   syncUrlWithState({ replace: true });
+}
+
+function closeChannelDetails() {
+  closeDetailsView();
 }
 
 function selectChannel(channelId, shouldScrollToSection = false) {
@@ -1072,8 +1326,18 @@ function handleAction(action, target) {
     return;
   }
 
+  if (action === "watch-program") {
+    openProgramPlayer(target.dataset.channelId, Number(target.dataset.programIndex));
+    return;
+  }
+
+  if (action === "toggle-watchlist") {
+    showToast("Programa adicionado à sua lista.");
+    return;
+  }
+
   if (action === "details-back") {
-    closeChannelDetails();
+    closeDetailsView();
     return;
   }
 

@@ -1,0 +1,2 @@
+- Arrumar players pequenas features
+- Prosseguir com outras telas 
