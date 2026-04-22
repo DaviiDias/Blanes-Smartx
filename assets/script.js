@@ -112,6 +112,7 @@ const appState = {
   programDetailReturnMode: "browse",
   programPlayerReturnMode: "browse",
   selectedProgramByChannel: {},
+  watchlistProgramKeys: [],
   metrics: null,
   focusGroup: "menu",
   focusIndex: 0
@@ -590,6 +591,7 @@ function renderProgramDetailsView() {
   const selectedProgramIndex = getSelectedProgramIndex(channel.id, schedule);
   const selectedProgram = schedule[selectedProgramIndex] || schedule[0];
   const isLive = selectedProgram.status === "live";
+  const isSavedInWatchlist = isProgramInWatchlist(channel.id, selectedProgramIndex);
 
   ui.dashboard?.style.setProperty("--details-bg", `url('${selectedProgram.image || channel.backgroundImage}')`);
 
@@ -604,8 +606,8 @@ function renderProgramDetailsView() {
           <p>${selectedProgram.timeInfo}</p>
           <div class="program-action-row">
             ${isLive ? `<button class="program-watch-btn" data-focusable="true" data-group="content" data-action="watch-program" data-channel-id="${channel.id}" data-program-index="${selectedProgramIndex}">Assistir</button>` : ""}
-            <button class="program-star-btn ${isLive ? "" : "is-soon-cta"}" data-focusable="true" data-group="content" data-action="toggle-watchlist" data-channel-id="${channel.id}" data-program-index="${selectedProgramIndex}" aria-label="${isLive ? "Adicionar programa à lista" : "Adicionar à Minha lista"}">
-              ${isLive ? `<span aria-hidden="true">☆</span>` : `<span class="program-star-btn-label">Minha lista</span><span class="program-star-btn-icon" aria-hidden="true">☆</span>`}
+            <button class="program-star-btn ${isLive ? "" : "is-soon-cta"} ${isSavedInWatchlist ? "is-saved" : ""}" data-focusable="true" data-group="content" data-action="toggle-watchlist" data-channel-id="${channel.id}" data-program-index="${selectedProgramIndex}" aria-label="${isSavedInWatchlist ? "Remover da Minha lista" : isLive ? "Adicionar programa à lista" : "Adicionar à Minha lista"}">
+              ${isLive ? `<span aria-hidden="true">${isSavedInWatchlist ? "★" : "☆"}</span>` : `<span class="program-star-btn-label">Minha lista</span><span class="program-star-btn-icon" aria-hidden="true">${isSavedInWatchlist ? "★" : "☆"}</span>`}
             </button>
           </div>
         </section>
@@ -641,6 +643,100 @@ function renderProgramDetailsView() {
           </div>
         </section>
       </section>
+    </section>
+  `;
+}
+
+function getProgramKey(channelId, programIndex) {
+  return `${channelId}::${programIndex}`;
+}
+
+function isProgramInWatchlist(channelId, programIndex) {
+  return appState.watchlistProgramKeys.includes(getProgramKey(channelId, programIndex));
+}
+
+function toggleProgramInWatchlist(channelId, programIndex) {
+  const key = getProgramKey(channelId, programIndex);
+  const exists = appState.watchlistProgramKeys.includes(key);
+
+  if (exists) {
+    appState.watchlistProgramKeys = appState.watchlistProgramKeys.filter((item) => item !== key);
+    return false;
+  }
+
+  appState.watchlistProgramKeys = [...appState.watchlistProgramKeys, key];
+  return true;
+}
+
+function createInitialMockWatchlist(channels) {
+  return channels
+    .slice(0, 6)
+    .flatMap((channel) => {
+      const schedule = getChannelProgramming(channel);
+      return schedule.slice(0, 3).map((_, index) => getProgramKey(channel.id, index));
+    });
+}
+
+function getWatchlistPrograms() {
+  return appState.watchlistProgramKeys
+    .map((key) => {
+      const [channelId, rawIndex] = key.split("::");
+      const channel = getChannelById(channelId);
+      if (!channel) {
+        return null;
+      }
+
+      const schedule = getChannelProgramming(channel);
+      const programIndex = Number(rawIndex);
+      const program = schedule[programIndex];
+      if (!program) {
+        return null;
+      }
+
+      return {
+        channel,
+        channelId,
+        programIndex,
+        program
+      };
+    })
+    .filter((item) => Boolean(item));
+}
+
+function renderMyListSection() {
+  const watchlist = getWatchlistPrograms();
+
+  if (!watchlist.length) {
+    return renderStateBox({
+      title: "Minha lista vazia",
+      description: "Use a estrela nos detalhes do programa para salvar itens aqui."
+    });
+  }
+
+  return `
+    <section class="my-list-main" aria-label="Programas salvos em Minha lista">
+      <div class="my-list-grid" role="list">
+        ${watchlist
+          .map(
+            (item) => `
+              <article
+                class="my-list-card"
+                role="listitem"
+                data-focusable="true"
+                data-group="content"
+                data-action="select-program"
+                data-channel-id="${item.channelId}"
+                data-program-index="${item.programIndex}"
+                data-return-mode="minha-lista"
+              >
+                <div class="program-visual">
+                  <img src="${item.program.image}" alt="Capa da programacao ${item.program.title}" loading="lazy" />
+                </div>
+              </article>
+            `
+          )
+          .join("")}
+      </div>
     </section>
   `;
 }
@@ -857,6 +953,11 @@ function renderDashboardContent() {
     return;
   }
 
+  if (appState.activeSection === "minha-lista") {
+    ui.dashboardContent.innerHTML = renderMyListSection();
+    return;
+  }
+
   ui.dashboardContent.innerHTML = renderPlaceholderSection(appState.activeSection);
 }
 
@@ -1053,13 +1154,14 @@ function selectProgramCard(channelId, programIndex, programImage) {
   openProgramDetails(channelId, programIndex);
 }
 
-function openProgramDetails(channelId, programIndex) {
+function openProgramDetails(channelId, programIndex, returnMode = "browse") {
   const channel = getChannelById(channelId);
   if (!channel) {
     return;
   }
 
-  appState.programDetailReturnMode = appState.channelViewMode === "channel-details" ? "channel-details" : "browse";
+  appState.activeSection = "canais";
+  appState.programDetailReturnMode = returnMode === "minha-lista" ? "minha-lista" : appState.channelViewMode === "channel-details" ? "channel-details" : "browse";
   appState.programPlayerReturnMode = "browse";
   appState.channelViewMode = "program-details";
   appState.detailChannelId = channelId;
@@ -1129,6 +1231,9 @@ function closeDetailsView() {
 
   if (appState.channelViewMode === "program-details" && appState.programDetailReturnMode === "channel-details") {
     appState.channelViewMode = "channel-details";
+  } else if (appState.channelViewMode === "program-details" && appState.programDetailReturnMode === "minha-lista") {
+    appState.activeSection = "minha-lista";
+    appState.channelViewMode = "browse";
   } else {
     appState.channelViewMode = "browse";
     appState.detailChannelId = null;
@@ -1285,6 +1390,7 @@ async function loadInitialData() {
     appState.channels = channels;
     appState.selectedChannelId = channels[0]?.id || null;
     initializeProgramSelections(channels);
+    appState.watchlistProgramKeys = createInitialMockWatchlist(channels);
     appState.metrics = metrics;
     appState.status = "ready";
 
@@ -1322,7 +1428,7 @@ function handleAction(action, target) {
   }
 
   if (action === "select-program") {
-    selectProgramCard(target.dataset.channelId, Number(target.dataset.programIndex), target.dataset.programImage);
+    openProgramDetails(target.dataset.channelId, Number(target.dataset.programIndex), target.dataset.returnMode || "browse");
     return;
   }
 
@@ -1337,7 +1443,9 @@ function handleAction(action, target) {
   }
 
   if (action === "toggle-watchlist") {
-    showToast("Programa adicionado à sua lista.");
+    const added = toggleProgramInWatchlist(target.dataset.channelId, Number(target.dataset.programIndex));
+    showToast(added ? "Programa adicionado à Minha lista." : "Programa removido da Minha lista.");
+    renderDashboardContent();
     return;
   }
 
