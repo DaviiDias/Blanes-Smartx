@@ -604,8 +604,8 @@ function renderProgramDetailsView() {
           <p>${selectedProgram.timeInfo}</p>
           <div class="program-action-row">
             ${isLive ? `<button class="program-watch-btn" data-focusable="true" data-group="content" data-action="watch-program" data-channel-id="${channel.id}" data-program-index="${selectedProgramIndex}">Assistir</button>` : ""}
-            <button class="program-star-btn" data-focusable="true" data-group="content" data-action="toggle-watchlist" data-channel-id="${channel.id}" data-program-index="${selectedProgramIndex}" aria-label="Adicionar programa à lista">
-              <span aria-hidden="true">☆</span>
+            <button class="program-star-btn ${isLive ? "" : "is-soon-cta"}" data-focusable="true" data-group="content" data-action="toggle-watchlist" data-channel-id="${channel.id}" data-program-index="${selectedProgramIndex}" aria-label="${isLive ? "Adicionar programa à lista" : "Adicionar à Minha lista"}">
+              ${isLive ? `<span aria-hidden="true">☆</span>` : `<span class="program-star-btn-label">Minha lista</span><span class="program-star-btn-icon" aria-hidden="true">☆</span>`}
             </button>
           </div>
         </section>
@@ -864,6 +864,9 @@ function setMenuActive(section) {
   document.querySelectorAll(".menu-item").forEach((button) => {
     const isCurrent = button.dataset.section === section;
     button.classList.toggle("is-active", isCurrent);
+    if (!isCurrent) {
+      button.classList.remove("is-focused");
+    }
   });
 }
 
@@ -1033,8 +1036,10 @@ function setSection(section) {
   renderDashboardContent();
   syncUrlWithState();
   appState.focusGroup = "menu";
-  appState.focusIndex = -1;
-  focusGroup("menu", 1);
+  const menuItems = findFocusableByGroup("menu");
+  const activeIndex = menuItems.findIndex((item) => item.dataset.section === section);
+  appState.focusIndex = activeIndex >= 0 ? activeIndex : 0;
+  focusGroup("menu", 0);
 }
 
 function selectProgramCard(channelId, programIndex, programImage) {

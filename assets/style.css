@@ -782,6 +782,32 @@ h1 {
   transform: translateY(-1px);
 }
 
+.program-star-btn.is-soon-cta {
+  width: auto;
+  min-height: 48px;
+  padding: 0.7rem 1.1rem;
+  border: 1px solid rgba(255, 255, 255, 0.92);
+  border-radius: 0.25rem;
+  background: #ffffff;
+  color: #050607;
+  font: inherit;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.52rem;
+}
+
+.program-star-btn.is-soon-cta .program-star-btn-label {
+  transform: none;
+}
+
+.program-star-btn.is-soon-cta .program-star-btn-icon {
+  transform: translateY(-1px);
+  font-size: 1.1rem;
+}
+
 .program-star-btn:hover,
 .program-star-btn:focus-visible,
 .program-star-btn.is-focused {
@@ -792,6 +818,13 @@ h1 {
 
 .program-star-btn:active {
   transform: translateY(1px) scale(0.985);
+}
+
+.program-star-btn.is-soon-cta:hover,
+.program-star-btn.is-soon-cta:focus-visible,
+.program-star-btn.is-soon-cta.is-focused {
+  background: rgba(255, 255, 255, 0.92);
+  border-color: #ffffff;
 }
 
 .program-details-view {
