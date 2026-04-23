@@ -104,7 +104,7 @@ const availableSections = new Set(["inicio", "canais", "minha-lista", "series", 
 
 const appState = {
   status: "loading",
-  activeSection: "canais",
+  activeSection: "inicio",
   channelViewMode: "browse",
   homeFeaturedIndex: 0,
   channels: [],
@@ -904,20 +904,53 @@ function getWatchlistPrograms() {
     .filter((item) => Boolean(item));
 }
 
-function renderMyListSection() {
-  const watchlist = getWatchlistPrograms();
+function normalizeCatalogText(value) {
+  return String(value || "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase();
+}
 
-  if (!watchlist.length) {
+function getProgramContentType(channel, program) {
+  const channelGenre = normalizeCatalogText(channel?.genre);
+  const title = normalizeCatalogText(program?.title);
+  const seriesHint = /\b(ep|episodio|episodios|temporada|season|serie|series|minisserie|miniserie)\b/;
+  const movieHint = /\b(filme|filmes|cinema|estreia)\b/;
+
+  if (channelGenre.includes("series") || seriesHint.test(title)) {
+    return "series";
+  }
+
+  if (movieHint.test(title)) {
+    return "filmes";
+  }
+
+  return "filmes";
+}
+
+function getProgramsByType(type) {
+  const pool = getAllProgramsCatalog();
+  return pool.filter((item) => {
+    const channel = getChannelById(item.channelId);
+    if (!channel) {
+      return false;
+    }
+    return getProgramContentType(channel, item.program) === type;
+  });
+}
+
+function renderProgramGridSection({ items, ariaLabel, returnMode, emptyTitle, emptyDescription }) {
+  if (!items.length) {
     return renderStateBox({
-      title: "Minha lista vazia",
-      description: "Use a estrela nos detalhes do programa para salvar itens aqui."
+      title: emptyTitle,
+      description: emptyDescription
     });
   }
 
   return `
-    <section class="my-list-main" aria-label="Programas salvos em Minha lista">
+    <section class="my-list-main" aria-label="${ariaLabel}">
       <div class="my-list-grid" role="list">
-        ${watchlist
+        ${items
           .map(
             (item) => `
               <article
@@ -928,7 +961,7 @@ function renderMyListSection() {
                 data-action="select-program"
                 data-channel-id="${item.channelId}"
                 data-program-index="${item.programIndex}"
-                data-return-mode="minha-lista"
+                data-return-mode="${returnMode}"
               >
                 <div class="program-visual">
                   <img src="${item.program.image}" alt="Capa da programacao ${item.program.title}" loading="lazy" />
@@ -940,6 +973,36 @@ function renderMyListSection() {
       </div>
     </section>
   `;
+}
+
+function renderMyListSection() {
+  return renderProgramGridSection({
+    items: getWatchlistPrograms(),
+    ariaLabel: "Programas salvos em Minha lista",
+    returnMode: "minha-lista",
+    emptyTitle: "Minha lista vazia",
+    emptyDescription: "Use a estrela nos detalhes do programa para salvar itens aqui."
+  });
+}
+
+function renderSeriesSection() {
+  return renderProgramGridSection({
+    items: getProgramsByType("series"),
+    ariaLabel: "Catalogo completo de series",
+    returnMode: "series",
+    emptyTitle: "Sem series no momento",
+    emptyDescription: "Nao encontramos series disponiveis neste momento."
+  });
+}
+
+function renderMoviesSection() {
+  return renderProgramGridSection({
+    items: getProgramsByType("filmes"),
+    ariaLabel: "Catalogo completo de filmes",
+    returnMode: "filmes",
+    emptyTitle: "Sem filmes no momento",
+    emptyDescription: "Nao encontramos filmes disponiveis neste momento."
+  });
 }
 
 function renderProgramPlayerView() {
@@ -1162,6 +1225,16 @@ function renderDashboardContent() {
 
   if (appState.activeSection === "minha-lista") {
     ui.dashboardContent.innerHTML = renderMyListSection();
+    return;
+  }
+
+  if (appState.activeSection === "series") {
+    ui.dashboardContent.innerHTML = renderSeriesSection();
+    return;
+  }
+
+  if (appState.activeSection === "filmes") {
+    ui.dashboardContent.innerHTML = renderMoviesSection();
     return;
   }
 
@@ -1412,8 +1485,10 @@ function openProgramDetails(channelId, programIndex, returnMode = "browse") {
     return;
   }
 
+  const isLibraryMode = returnMode === "minha-lista" || returnMode === "series" || returnMode === "filmes";
+
   appState.activeSection = "canais";
-  appState.programDetailReturnMode = returnMode === "minha-lista" ? "minha-lista" : appState.channelViewMode === "channel-details" ? "channel-details" : "browse";
+  appState.programDetailReturnMode = isLibraryMode ? returnMode : appState.channelViewMode === "channel-details" ? "channel-details" : "browse";
   appState.programPlayerReturnMode = "browse";
   appState.channelViewMode = "program-details";
   appState.detailChannelId = channelId;
@@ -1486,11 +1561,19 @@ function closeDetailsView() {
   } else if (appState.channelViewMode === "program-details" && appState.programDetailReturnMode === "minha-lista") {
     appState.activeSection = "minha-lista";
     appState.channelViewMode = "browse";
+  } else if (appState.channelViewMode === "program-details" && appState.programDetailReturnMode === "series") {
+    appState.activeSection = "series";
+    appState.channelViewMode = "browse";
+  } else if (appState.channelViewMode === "program-details" && appState.programDetailReturnMode === "filmes") {
+    appState.activeSection = "filmes";
+    appState.channelViewMode = "browse";
   } else {
     appState.channelViewMode = "browse";
     appState.detailChannelId = null;
     appState.programDetailReturnMode = "browse";
   }
+
+  setMenuActive(appState.activeSection);
 
   renderDashboardContent();
   syncUrlWithState({ replace: true });
