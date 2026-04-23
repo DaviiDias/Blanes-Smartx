@@ -106,6 +106,7 @@ const appState = {
   status: "loading",
   activeSection: "canais",
   channelViewMode: "browse",
+  homeFeaturedIndex: 0,
   channels: [],
   selectedChannelId: null,
   detailChannelId: null,
@@ -117,6 +118,8 @@ const appState = {
   focusGroup: "menu",
   focusIndex: 0
 };
+
+let homeHeroAutoRotateTimer = null;
 
 const ui = {
   topbar: document.querySelector(".topbar"),
@@ -211,26 +214,224 @@ function renderChannelsSkeleton() {
   `;
 }
 
-function renderHomeSection() {
-  const metrics = appState.metrics || { avgOpenTime: "--", completedSessions: "--", navigationErrors: "--" };
+function deriveProgramGenre(channel, program, index) {
+  const text = `${channel.genre} ${program.title}`.toLowerCase();
+  if (text.includes("document")) {
+    return "Documentario";
+  }
+  if (text.includes("comedia")) {
+    return "Comedia";
+  }
+  if (text.includes("drama")) {
+    return "Drama";
+  }
+  if (text.includes("fic") || text.includes("sci")) {
+    return "Ficcao Cientifica";
+  }
+  if (text.includes("acao") || text.includes("guerra")) {
+    return "Acao";
+  }
+
+  const fallback = ["Acao", "Ficcao Cientifica", "Comedia", "Drama"];
+  return fallback[(index + channel.title.length) % fallback.length];
+}
+
+function getAllProgramsCatalog() {
+  if (!appState.channels.length) {
+    return [];
+  }
+
+  return appState.channels.flatMap((channel) => {
+    const schedule = getChannelProgramming(channel);
+    return schedule.map((program, programIndex) => ({
+      channelId: channel.id,
+      channelTitle: channel.title,
+      channelGenre: channel.genre,
+      programIndex,
+      program,
+      genreLabel: deriveProgramGenre(channel, program, programIndex)
+    }));
+  });
+}
+
+function getHomeFeaturedPrograms() {
+  const pool = getAllProgramsCatalog();
+  if (!pool.length) {
+    return [];
+  }
+
+  const ordered = [...pool].sort((a, b) => Number(b.program.status === "live") - Number(a.program.status === "live"));
+  const featured = ordered.slice(0, 6);
+  while (featured.length < 6) {
+    featured.push(ordered[featured.length % ordered.length]);
+  }
+  return featured;
+}
+
+function getHomeRailsData() {
+  const pool = getAllProgramsCatalog();
+  const watchlistKeys = new Set(appState.watchlistProgramKeys);
+  const continueWatching = [...pool].sort((a, b) => Number(b.program.status === "live") - Number(a.program.status === "live")).slice(0, 14);
+  const minhaLista = getWatchlistPrograms().map((item) => ({
+    channelId: item.channelId,
+    channelTitle: item.channel.title,
+    channelGenre: item.channel.genre,
+    programIndex: item.programIndex,
+    program: item.program,
+    genreLabel: deriveProgramGenre(item.channel, item.program, item.programIndex)
+  }));
+  const recomendados = pool.filter((item) => !watchlistKeys.has(getProgramKey(item.channelId, item.programIndex))).slice(0, 14);
+  const top10 = [...pool].slice(0, 10);
+
+  const genreRows = ["Acao", "Ficcao Cientifica", "Comedia", "Drama"]
+    .map((genre) => {
+      const items = pool.filter((item) => item.genreLabel === genre).slice(0, 14);
+      if (!items.length) {
+        return null;
+      }
+      return {
+        id: `home-genre-${genre.toLowerCase().replace(/[^a-z0-9]+/g, "-")}`,
+        title: `Filmes de ${genre}`,
+        items
+      };
+    })
+    .filter((row) => Boolean(row));
+
+  return {
+    continueWatching,
+    minhaLista,
+    recomendados,
+    top10,
+    genreRows
+  };
+}
+
+function renderHomeRailSection({ id, title, items, isTop10 = false }) {
+  if (!items.length) {
+    return "";
+  }
+
+  const cardMarkup = isTop10
+    ? items
+        .map(
+          (item, index) => `
+            <article
+              class="home-top10-card"
+              data-focusable="true"
+              data-group="content"
+              data-action="select-program"
+              data-channel-id="${item.channelId}"
+              data-program-index="${item.programIndex}"
+            >
+              <span class="home-top10-rank" aria-hidden="true">${index + 1}</span>
+              <div class="home-top10-visual">
+                <img src="${item.program.image}" alt="Capa do Top 10 ${item.program.title}" loading="lazy" />
+              </div>
+            </article>
+          `
+        )
+        .join("")
+    : items
+        .map((item) =>
+          renderProgramCard({
+            channelId: item.channelId,
+            program: item.program,
+            programIndex: item.programIndex,
+            isSelected: false,
+            showStatus: false
+          })
+        )
+        .join("");
+
   return `
-    <section class="section-shell">
-      <h2>Painel de operacao</h2>
-      <p>Ambiente de entrada para sessao na TV. Use o menu superior para alternar entre os modulos.</p>
-      <div class="metrics-inline">
-        <article class="metric-tile">
-          <span>Tempo medio para abrir</span>
-          <strong>${metrics.avgOpenTime}</strong>
-        </article>
-        <article class="metric-tile">
-          <span>Sessoes concluidas hoje</span>
-          <strong>${metrics.completedSessions}</strong>
-        </article>
-        <article class="metric-tile">
-          <span>Erros de navegacao</span>
-          <strong>${metrics.navigationErrors}</strong>
-        </article>
+    <section class="home-rail-section" aria-label="${title}">
+      <h3 class="home-rail-title">${title}</h3>
+      <div class="carousel-shell" data-carousel-shell data-carousel-id="${id}">
+        <div class="carousel-lane carousel-lane-left" data-carousel-lane="left">
+          <button class="carousel-btn" data-focusable="false" data-group="content" data-action="carousel-prev" data-carousel-target="${id}" aria-label="Voltar ${title}">&#10094;</button>
+        </div>
+
+        <div class="carousel-viewport" data-carousel-viewport>
+          <div class="carousel-track program-track ${isTop10 ? "home-top10-track" : ""}" role="list">
+            ${cardMarkup}
+          </div>
+        </div>
+
+        <div class="carousel-lane carousel-lane-right" data-carousel-lane="right">
+          <button class="carousel-btn" data-focusable="false" data-group="content" data-action="carousel-next" data-carousel-target="${id}" aria-label="Avancar ${title}">&#10095;</button>
+        </div>
       </div>
+    </section>
+  `;
+}
+
+function renderHomeSection() {
+  const featured = getHomeFeaturedPrograms();
+  if (!featured.length) {
+    return renderStateBox({
+      title: "Sem destaques no momento",
+      description: "Nao foi possivel montar os destaques da home."
+    });
+  }
+
+  appState.homeFeaturedIndex = Math.max(0, Math.min(appState.homeFeaturedIndex || 0, featured.length - 1));
+  const active = featured[appState.homeFeaturedIndex];
+  const rails = getHomeRailsData();
+
+  return `
+    <section class="home-screen" aria-label="Destaques da home">
+      <section class="home-hero" aria-label="Slide principal de destaques">
+        <div class="home-hero-slides" role="presentation">
+          ${featured
+            .map(
+              (item, index) => `
+                <article class="home-hero-slide ${index === appState.homeFeaturedIndex ? "is-active" : ""}" aria-hidden="${index === appState.homeFeaturedIndex ? "false" : "true"}">
+                  <img src="${item.program.image}" alt="Destaque ${item.program.title}" loading="eager" />
+                </article>
+              `
+            )
+            .join("")}
+        </div>
+
+        <div class="home-hero-scrim" aria-hidden="true"></div>
+
+        <div class="home-hero-content">
+          <h2>${active.program.title}</h2>
+          <div class="home-hero-meta">
+            <span class="home-hero-rating">16</span>
+            <span>${active.program.year}</span>
+            <span>${active.genreLabel}</span>
+          </div>
+          <p>${active.program.status === "live" ? `Em exibicao agora em ${active.channelTitle}.` : `${active.program.timeInfo} em ${active.channelTitle}.`}</p>
+          <div class="home-hero-actions">
+            <button class="program-watch-btn" data-focusable="true" data-group="content" data-action="watch-program" data-channel-id="${active.channelId}" data-program-index="${active.programIndex}">Assistir agora</button>
+            <button class="home-hero-info-btn" data-focusable="true" data-group="content" data-action="select-program" data-channel-id="${active.channelId}" data-program-index="${active.programIndex}" aria-label="Abrir informacoes do programa">
+              i
+            </button>
+          </div>
+        </div>
+
+        <button class="home-hero-arrow is-left" data-focusable="false" data-group="content" data-action="home-slide-prev" aria-label="Slide anterior">&#10094;</button>
+        <button class="home-hero-arrow is-right" data-focusable="false" data-group="content" data-action="home-slide-next" aria-label="Proximo slide">&#10095;</button>
+
+        <div class="home-hero-dots" aria-label="Navegacao de slides">
+          ${featured
+            .map(
+              (_, index) => `
+                <button class="home-hero-dot ${index === appState.homeFeaturedIndex ? "is-active" : ""}" data-focusable="false" data-group="content" data-action="home-slide-dot" data-slide-index="${index}" aria-label="Ir para slide ${index + 1}"></button>
+              `
+            )
+            .join("")}
+        </div>
+      </section>
+
+      <section class="home-rails">
+        ${renderHomeRailSection({ id: "home-continue", title: "Continue assistindo", items: rails.continueWatching })}
+        ${renderHomeRailSection({ id: "home-my-list", title: "Minha Lista", items: rails.minhaLista })}
+        ${renderHomeRailSection({ id: "home-recommended", title: "Recomendados", items: rails.recomendados })}
+        ${renderHomeRailSection({ id: "home-top10", title: "Top 10 filmes de hoje", items: rails.top10, isTop10: true })}
+        ${rails.genreRows.map((row) => renderHomeRailSection(row)).join("")}
+      </section>
     </section>
   `;
 }
@@ -908,11 +1109,13 @@ function renderDashboardContent() {
   const detailsChannel = getChannelById(appState.detailChannelId);
   const isDetailsMode = appState.activeSection === "canais" && (appState.channelViewMode === "channel-details" || appState.channelViewMode === "program-details") && Boolean(detailsChannel);
   const isPlayerMode = appState.activeSection === "canais" && appState.channelViewMode === "program-player" && Boolean(detailsChannel);
+  const isHomeMode = appState.activeSection === "inicio" && !isDetailsMode && !isPlayerMode;
   const schedule = detailsChannel ? getChannelProgramming(detailsChannel) : [];
   const selectedProgramIndex = detailsChannel ? getSelectedProgramIndex(detailsChannel.id, schedule) : 0;
   const selectedProgram = detailsChannel && schedule.length ? schedule[selectedProgramIndex] || schedule[0] : null;
 
-  ui.sectionTitle.textContent = isPlayerMode && selectedProgram ? selectedProgram.title : isDetailsMode ? detailsChannel.title : meta.title;
+  ui.sectionTitle.textContent = isHomeMode ? "" : isPlayerMode && selectedProgram ? selectedProgram.title : isDetailsMode ? detailsChannel.title : meta.title;
+  document.body.classList.toggle("is-home-mode", isHomeMode);
   document.body.classList.toggle("is-details-mode", isDetailsMode);
   document.body.classList.toggle("is-player-mode", isPlayerMode);
   ui.topbar?.classList.toggle("is-details-topbar", isDetailsMode);
@@ -933,8 +1136,12 @@ function renderDashboardContent() {
 
   if (appState.activeSection === "inicio") {
     ui.dashboardContent.innerHTML = renderHomeSection();
+    setupAllCarousels();
+    syncHomeHeroAutoplay();
     return;
   }
+
+  stopHomeHeroAutoplay();
 
   if (appState.activeSection === "canais") {
     syncActiveChannelBackground();
@@ -959,6 +1166,51 @@ function renderDashboardContent() {
   }
 
   ui.dashboardContent.innerHTML = renderPlaceholderSection(appState.activeSection);
+}
+
+function stepHomeFeaturedSlide(direction) {
+  const featured = getHomeFeaturedPrograms();
+  if (!featured.length) {
+    return;
+  }
+
+  const total = featured.length;
+  appState.homeFeaturedIndex = (appState.homeFeaturedIndex + total + direction) % total;
+  renderDashboardContent();
+}
+
+function setHomeFeaturedSlide(index) {
+  const featured = getHomeFeaturedPrograms();
+  if (!featured.length) {
+    return;
+  }
+
+  appState.homeFeaturedIndex = Math.max(0, Math.min(index, featured.length - 1));
+  renderDashboardContent();
+}
+
+function stopHomeHeroAutoplay() {
+  if (homeHeroAutoRotateTimer) {
+    window.clearInterval(homeHeroAutoRotateTimer);
+    homeHeroAutoRotateTimer = null;
+  }
+}
+
+function syncHomeHeroAutoplay() {
+  stopHomeHeroAutoplay();
+
+  if (appState.activeSection !== "inicio" || appState.status !== "ready") {
+    return;
+  }
+
+  const featured = getHomeFeaturedPrograms();
+  if (featured.length < 2) {
+    return;
+  }
+
+  homeHeroAutoRotateTimer = window.setInterval(() => {
+    stepHomeFeaturedSlide(1);
+  }, 6500);
 }
 
 function setMenuActive(section) {
@@ -1439,6 +1691,21 @@ function handleAction(action, target) {
 
   if (action === "watch-program") {
     openProgramPlayer(target.dataset.channelId, Number(target.dataset.programIndex));
+    return;
+  }
+
+  if (action === "home-slide-prev") {
+    stepHomeFeaturedSlide(-1);
+    return;
+  }
+
+  if (action === "home-slide-next") {
+    stepHomeFeaturedSlide(1);
+    return;
+  }
+
+  if (action === "home-slide-dot") {
+    setHomeFeaturedSlide(Number(target.dataset.slideIndex));
     return;
   }
 
