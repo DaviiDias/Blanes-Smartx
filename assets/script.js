@@ -379,8 +379,8 @@ function renderHomeSection() {
   const rails = getHomeRailsData();
 
   return `
-    <section class="home-screen" aria-label="Destaques da home">
-      <section class="home-hero" aria-label="Slide principal de destaques">
+    <section class="home-screen" aria-label="Destaques da home" data-home-screen>
+      <section class="home-hero" aria-label="Slide principal de destaques" data-home-hero>
         <div class="home-hero-slides" role="presentation">
           ${featured
             .map(
@@ -396,13 +396,13 @@ function renderHomeSection() {
         <div class="home-hero-scrim" aria-hidden="true"></div>
 
         <div class="home-hero-content">
-          <h2>${active.program.title}</h2>
+          <h2 data-home-hero-title>${active.program.title}</h2>
           <div class="home-hero-meta">
-            <span class="home-hero-rating">16</span>
-            <span>${active.program.year}</span>
-            <span>${active.genreLabel}</span>
+            <span class="home-hero-rating" data-home-hero-rating>16</span>
+            <span data-home-hero-year>${active.program.year}</span>
+            <span data-home-hero-genre>${active.genreLabel}</span>
           </div>
-          <p>${active.program.status === "live" ? `Em exibicao agora em ${active.channelTitle}.` : `${active.program.timeInfo} em ${active.channelTitle}.`}</p>
+          <p data-home-hero-description>${active.program.status === "live" ? `Em exibicao agora em ${active.channelTitle}.` : `${active.program.timeInfo} em ${active.channelTitle}.`}</p>
           <div class="home-hero-actions">
             <button class="program-watch-btn" data-focusable="true" data-group="content" data-action="watch-program" data-channel-id="${active.channelId}" data-program-index="${active.programIndex}">Assistir agora</button>
             <button class="home-hero-info-btn" data-focusable="true" data-group="content" data-action="select-program" data-channel-id="${active.channelId}" data-program-index="${active.programIndex}" aria-label="Abrir informacoes do programa">
@@ -434,6 +434,74 @@ function renderHomeSection() {
       </section>
     </section>
   `;
+}
+
+function updateHomeHeroView() {
+  const hero = document.querySelector("[data-home-hero]");
+  const homeScreen = document.querySelector("[data-home-screen]");
+  if (!hero || !homeScreen) {
+    return false;
+  }
+
+  const featured = getHomeFeaturedPrograms();
+  if (!featured.length) {
+    return false;
+  }
+
+  appState.homeFeaturedIndex = Math.max(0, Math.min(appState.homeFeaturedIndex || 0, featured.length - 1));
+  const active = featured[appState.homeFeaturedIndex];
+  const slides = Array.from(hero.querySelectorAll(".home-hero-slide"));
+  const dots = Array.from(hero.querySelectorAll(".home-hero-dot"));
+
+  slides.forEach((slide, index) => {
+    const isActive = index === appState.homeFeaturedIndex;
+    slide.classList.toggle("is-active", isActive);
+    slide.setAttribute("aria-hidden", isActive ? "false" : "true");
+  });
+
+  dots.forEach((dot, index) => {
+    dot.classList.toggle("is-active", index === appState.homeFeaturedIndex);
+  });
+
+  const title = hero.querySelector("[data-home-hero-title]");
+  const rating = hero.querySelector("[data-home-hero-rating]");
+  const year = hero.querySelector("[data-home-hero-year]");
+  const genre = hero.querySelector("[data-home-hero-genre]");
+  const description = hero.querySelector("[data-home-hero-description]");
+  const watchButton = hero.querySelector('[data-action="watch-program"]');
+  const infoButton = hero.querySelector('[data-action="select-program"]');
+
+  if (title) {
+    title.textContent = active.program.title;
+  }
+
+  if (rating) {
+    rating.textContent = "16";
+  }
+
+  if (year) {
+    year.textContent = active.program.year;
+  }
+
+  if (genre) {
+    genre.textContent = active.genreLabel;
+  }
+
+  if (description) {
+    description.textContent = active.program.status === "live" ? `Em exibicao agora em ${active.channelTitle}.` : `${active.program.timeInfo} em ${active.channelTitle}.`;
+  }
+
+  if (watchButton) {
+    watchButton.dataset.channelId = active.channelId;
+    watchButton.dataset.programIndex = String(active.programIndex);
+  }
+
+  if (infoButton) {
+    infoButton.dataset.channelId = active.channelId;
+    infoButton.dataset.programIndex = String(active.programIndex);
+  }
+
+  return true;
 }
 
 function renderChannelsSection() {
@@ -1249,7 +1317,9 @@ function stepHomeFeaturedSlide(direction) {
 
   const total = featured.length;
   appState.homeFeaturedIndex = (appState.homeFeaturedIndex + total + direction) % total;
-  renderDashboardContent();
+  if (!updateHomeHeroView()) {
+    renderDashboardContent();
+  }
 }
 
 function setHomeFeaturedSlide(index) {
@@ -1259,7 +1329,9 @@ function setHomeFeaturedSlide(index) {
   }
 
   appState.homeFeaturedIndex = Math.max(0, Math.min(index, featured.length - 1));
-  renderDashboardContent();
+  if (!updateHomeHeroView()) {
+    renderDashboardContent();
+  }
 }
 
 function stopHomeHeroAutoplay() {
@@ -1735,7 +1807,11 @@ async function loadInitialData() {
 
     appState.focusGroup = appState.channelViewMode === "channel-details" ? "content" : "menu";
     appState.focusIndex = -1;
-    focusGroup(appState.focusGroup, 1);
+    document.querySelectorAll(".is-focused").forEach((node) => node.classList.remove("is-focused"));
+
+    if (appState.activeSection !== "inicio") {
+      focusGroup(appState.focusGroup, 1);
+    }
   } catch (error) {
     appState.status = "error";
     renderDashboardContent();
