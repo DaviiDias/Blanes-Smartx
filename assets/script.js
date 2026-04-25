@@ -174,6 +174,79 @@ const channelProgramming = {
   ]
 };
 
+const videoconferenceContacts = [
+  {
+    id: "alicia-ramos",
+    name: "Alicia Ramos",
+    status: "Disponivel para uma chamada rapida.",
+    image: "https://picsum.photos/seed/vc-alicia/520/760",
+    isFavorite: true
+  },
+  {
+    id: "bianca-souza",
+    name: "Bianca Souza",
+    status: "No escritorio. Me chama quando precisar.",
+    image: "https://picsum.photos/seed/vc-bianca/520/760",
+    isFavorite: false
+  },
+  {
+    id: "carol-azevedo",
+    name: "Carol Azevedo",
+    status: "Revisando apresentacao para hoje.",
+    image: "https://picsum.photos/seed/vc-carol/520/760",
+    isFavorite: true
+  },
+  {
+    id: "diego-lima",
+    name: "Diego Lima",
+    status: "Livre ate 16:30.",
+    image: "https://picsum.photos/seed/vc-diego/520/760",
+    isFavorite: false
+  },
+  {
+    id: "eduarda-nunes",
+    name: "Eduarda Nunes",
+    status: "No modo foco. Respondo rapido por chamada.",
+    image: "https://picsum.photos/seed/vc-eduarda/520/760",
+    isFavorite: false
+  },
+  {
+    id: "felipe-moraes",
+    name: "Felipe Moraes",
+    status: "Planejamento da sprint em andamento.",
+    image: "https://picsum.photos/seed/vc-felipe/520/760",
+    isFavorite: false
+  },
+  {
+    id: "gabriela-teixeira",
+    name: "Gabriela Teixeira",
+    status: "Disponivel para alinhar requisitos.",
+    image: "https://picsum.photos/seed/vc-gabriela/520/760",
+    isFavorite: true
+  },
+  {
+    id: "helena-vieira",
+    name: "Helena Vieira",
+    status: "Volto em 20 minutos.",
+    image: "https://picsum.photos/seed/vc-helena/520/760",
+    isFavorite: false
+  },
+  {
+    id: "igor-freitas",
+    name: "Igor Freitas",
+    status: "Online no app mobile.",
+    image: "https://picsum.photos/seed/vc-igor/520/760",
+    isFavorite: false
+  },
+  {
+    id: "joana-pires",
+    name: "Joana Pires",
+    status: "Disponivel para chamada de acompanhamento.",
+    image: "https://picsum.photos/seed/vc-joana/520/760",
+    isFavorite: false
+  }
+];
+
 function fetchChannels() {
   return new Promise((resolve, reject) => {
     window.setTimeout(() => {
@@ -1170,6 +1243,103 @@ function renderProgramPlayerView() {
   `;
 }
 
+function sortContactsAlphabetically(list) {
+  return [...list].sort((a, b) => a.name.localeCompare(b.name, "pt-BR", { sensitivity: "base" }));
+}
+
+function getContactInitial(name) {
+  const normalized = (name || "").trim();
+  if (!normalized) {
+    return "#";
+  }
+
+  const base = normalized
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .charAt(0)
+    .toUpperCase();
+
+  return /[A-Z]/.test(base) ? base : "#";
+}
+
+function groupContactsByInitial(list) {
+  const groups = list.reduce((acc, contact) => {
+    const initial = getContactInitial(contact.name);
+    if (!acc[initial]) {
+      acc[initial] = [];
+    }
+    acc[initial].push(contact);
+    return acc;
+  }, {});
+
+  return Object.entries(groups)
+    .sort(([a], [b]) => a.localeCompare(b, "pt-BR", { sensitivity: "base" }))
+    .map(([initial, contacts]) => ({
+      initial,
+      contacts: sortContactsAlphabetically(contacts)
+    }));
+}
+
+function renderVideoContactCard(contact) {
+  return `
+    <article class="vc-contact-card" data-focusable="true" data-group="content" data-action="start-call" data-contact-name="${contact.name}">
+      <img src="${contact.image}" alt="${contact.name}" loading="lazy" />
+      <div class="vc-contact-overlay">
+        <div class="vc-contact-meta">
+          <h3>${contact.name}</h3>
+          <p>${contact.status}</p>
+        </div>
+        <div class="vc-contact-actions">
+          <button class="vc-call-btn" data-focusable="false" data-action="start-call" data-contact-name="${contact.name}" aria-label="Ligar para ${contact.name}">
+            Ligar
+          </button>
+        </div>
+      </div>
+    </article>
+  `;
+}
+
+function renderVideoconferenceSection() {
+  const sorted = sortContactsAlphabetically(videoconferenceContacts);
+  const favorites = sorted.filter((contact) => contact.isFavorite);
+  const regular = sorted;
+  const groupedRegular = groupContactsByInitial(regular);
+
+  return `
+    <section class="vc-screen" aria-label="Contatos de videoconferencia">
+      ${favorites.length
+        ? `
+            <section class="vc-group" aria-label="Favoritos">
+              <header class="vc-group-header">
+                <h2>Favoritos</h2>
+                <span aria-hidden="true"></span>
+              </header>
+              <div class="vc-cards-grid">
+                ${favorites.map((contact) => renderVideoContactCard(contact)).join("")}
+              </div>
+            </section>
+          `
+        : ""}
+
+      ${groupedRegular
+        .map(
+          (group) => `
+            <section class="vc-group" aria-label="Contatos com ${group.initial}">
+              <header class="vc-group-header">
+                <h2>${group.initial}</h2>
+                <span aria-hidden="true"></span>
+              </header>
+              <div class="vc-cards-grid">
+                ${group.contacts.map((contact) => renderVideoContactCard(contact)).join("")}
+              </div>
+            </section>
+          `
+        )
+        .join("")}
+    </section>
+  `;
+}
+
 function renderPlaceholderSection(section) {
   const map = {
     "minha-lista": {
@@ -1303,6 +1473,11 @@ function renderDashboardContent() {
 
   if (appState.activeSection === "filmes") {
     ui.dashboardContent.innerHTML = renderMoviesSection();
+    return;
+  }
+
+  if (appState.activeSection === "videoconferencia") {
+    ui.dashboardContent.innerHTML = renderVideoconferenceSection();
     return;
   }
 
@@ -1902,6 +2077,11 @@ function handleAction(action, target) {
 
   if (action === "roadmap") {
     showToast(`Recurso ${target.dataset.feature || "futuro"} planejado para V1.1+.`);
+    return;
+  }
+
+  if (action === "start-call") {
+    showToast(`Chamando ${target.dataset.contactName || "contato"}...`);
   }
 }
 
