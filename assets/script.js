@@ -89,6 +89,9 @@ const sectionMeta = {
   "minha-lista": {
     title: "Minha lista"
   },
+  search: {
+    title: "Pesquisa"
+  },
   series: {
     title: "Series"
   },
@@ -100,7 +103,7 @@ const sectionMeta = {
   }
 };
 
-const availableSections = new Set(["inicio", "canais", "minha-lista", "series", "filmes", "videoconferencia"]);
+const availableSections = new Set(["inicio", "canais", "minha-lista", "search", "series", "filmes", "videoconferencia"]);
 
 const appState = {
   status: "loading",
@@ -393,6 +396,7 @@ function renderHomeRailSection({ id, title, items, isTop10 = false }) {
               data-focusable="true"
               data-group="content"
               data-action="select-program"
+              data-return-mode="inicio"
               data-channel-id="${item.channelId}"
               data-program-index="${item.programIndex}"
             >
@@ -411,7 +415,8 @@ function renderHomeRailSection({ id, title, items, isTop10 = false }) {
             program: item.program,
             programIndex: item.programIndex,
             isSelected: false,
-            showStatus: false
+            showStatus: false,
+            returnMode: "inicio"
           })
         )
         .join("");
@@ -477,8 +482,8 @@ function renderHomeSection() {
           </div>
           <p data-home-hero-description>${active.program.status === "live" ? `Em exibicao agora em ${active.channelTitle}.` : `${active.program.timeInfo} em ${active.channelTitle}.`}</p>
           <div class="home-hero-actions">
-            <button class="program-watch-btn" data-focusable="true" data-group="content" data-action="watch-program" data-channel-id="${active.channelId}" data-program-index="${active.programIndex}">Assistir agora</button>
-            <button class="home-hero-info-btn" data-focusable="true" data-group="content" data-action="select-program" data-channel-id="${active.channelId}" data-program-index="${active.programIndex}" aria-label="Abrir informacoes do programa">
+            <button class="program-watch-btn" data-focusable="true" data-group="content" data-action="watch-program" data-return-mode="inicio" data-channel-id="${active.channelId}" data-program-index="${active.programIndex}">Assistir agora</button>
+            <button class="home-hero-info-btn" data-focusable="true" data-group="content" data-action="select-program" data-return-mode="inicio" data-channel-id="${active.channelId}" data-program-index="${active.programIndex}" aria-label="Abrir informacoes do programa">
               i
             </button>
           </div>
@@ -712,7 +717,7 @@ function getChannelProgramming(channel) {
   ];
 }
 
-function renderProgramCard({ channelId, program, programIndex, isSelected, showStatus = true }) {
+function renderProgramCard({ channelId, program, programIndex, isSelected, showStatus = true, returnMode = "" }) {
   const statusClass = program.status === "live" ? "is-live" : "is-soon";
   const progressMarkup = showStatus && program.status === "live" ? `<progress class="program-progress" max="100" value="${program.progress || 0}"></progress>` : "";
   const statusMarkup = showStatus ? `<span class="program-status ${statusClass}">${program.statusLabel}</span>` : "";
@@ -725,6 +730,7 @@ function renderProgramCard({ channelId, program, programIndex, isSelected, showS
       data-focusable="true"
       data-group="content"
       data-action="select-program"
+      ${returnMode ? `data-return-mode="${returnMode}"` : ""}
       data-channel-id="${channelId}"
       data-program-index="${programIndex}"
       data-program-image="${program.image}"
@@ -1146,6 +1152,27 @@ function renderMoviesSection() {
   });
 }
 
+function renderSearchSection() {
+  const q = String(appState.searchQuery || "").trim().toLowerCase();
+  if (!q) {
+    return renderStateBox({ title: "Busca vazia", description: "Digite para buscar programas." });
+  }
+
+  const pool = getAllProgramsCatalog().filter((item) => item.program && item.program.title && item.program.title.toLowerCase().includes(q));
+
+  if (!pool.length) {
+    return renderStateBox({ title: "Nenhum resultado", description: `Nenhum programa corresponde a "${appState.searchQuery}".` });
+  }
+
+  return renderProgramGridSection({
+    items: pool,
+    ariaLabel: `Resultados da busca para ${appState.searchQuery}`,
+    returnMode: "search",
+    emptyTitle: "Nenhum resultado",
+    emptyDescription: "Tente outra palavra-chave."
+  });
+}
+
 function renderProgramPlayerView() {
   const channel = getChannelById(appState.detailChannelId);
   if (!channel) {
@@ -1476,6 +1503,11 @@ function renderDashboardContent() {
     return;
   }
 
+  if (appState.activeSection === "search") {
+    ui.dashboardContent.innerHTML = renderSearchSection();
+    return;
+  }
+
   if (appState.activeSection === "videoconferencia") {
     ui.dashboardContent.innerHTML = renderVideoconferenceSection();
     return;
@@ -1731,11 +1763,10 @@ function openProgramDetails(channelId, programIndex, returnMode = "browse") {
   if (!channel) {
     return;
   }
-
-  const isLibraryMode = returnMode === "minha-lista" || returnMode === "series" || returnMode === "filmes";
+  const isLibraryMode = returnMode === "minha-lista" || returnMode === "series" || returnMode === "filmes" || returnMode === "inicio" || returnMode === "search";
 
   appState.activeSection = "canais";
-  appState.programDetailReturnMode = isLibraryMode ? returnMode : appState.channelViewMode === "channel-details" ? "channel-details" : "browse";
+  appState.programDetailReturnMode = returnMode || (appState.channelViewMode === "channel-details" ? "channel-details" : "browse");
   appState.programPlayerReturnMode = "browse";
   appState.channelViewMode = "program-details";
   appState.detailChannelId = channelId;
@@ -1751,13 +1782,14 @@ function openProgramDetails(channelId, programIndex, returnMode = "browse") {
   appState.focusIndex = -1;
 }
 
-function openProgramPlayer(channelId, programIndex) {
+function openProgramPlayer(channelId, programIndex, returnMode = "program-details") {
   const channel = getChannelById(channelId);
   if (!channel) {
     return;
   }
-
-  appState.programPlayerReturnMode = "program-details";
+  appState._previousActiveSection = appState.activeSection;
+  appState.activeSection = "canais";
+  appState.programPlayerReturnMode = returnMode || "program-details";
   appState.channelViewMode = "program-player";
   appState.detailChannelId = channelId;
   appState.selectedChannelId = channelId;
@@ -1793,11 +1825,20 @@ function openChannelDetails(channelId) {
 
 function closeDetailsView() {
   if (appState.channelViewMode === "program-player") {
-    appState.channelViewMode = appState.programPlayerReturnMode === "program-details" ? "program-details" : "browse";
-    if (appState.channelViewMode !== "program-details") {
+    if (appState.programPlayerReturnMode === "program-details") {
+      appState.channelViewMode = "program-details";
+    } else {
+      appState.channelViewMode = "browse";
+      if (appState.programPlayerReturnMode === "inicio") {
+        appState.activeSection = appState._previousActiveSection || "inicio";
+      } else {
+        appState.activeSection = appState.programPlayerReturnMode || "inicio";
+      }
+      delete appState._previousActiveSection;
       appState.detailChannelId = null;
       appState.programDetailReturnMode = "browse";
     }
+    setMenuActive(appState.activeSection);
     renderDashboardContent();
     syncUrlWithState({ replace: true });
     return;
@@ -1814,6 +1855,14 @@ function closeDetailsView() {
   } else if (appState.channelViewMode === "program-details" && appState.programDetailReturnMode === "filmes") {
     appState.activeSection = "filmes";
     appState.channelViewMode = "browse";
+  } else if (appState.channelViewMode === "program-details" && appState.programDetailReturnMode === "inicio") {
+    appState.activeSection = "inicio";
+    appState.channelViewMode = "browse";
+    appState.detailChannelId = null;
+  } else if (appState.channelViewMode === "program-details" && appState.programDetailReturnMode === "search") {
+    appState.channelViewMode = "browse";
+    appState.activeSection = "canais";
+    appState.detailChannelId = null;
   } else {
     appState.channelViewMode = "browse";
     appState.detailChannelId = null;
@@ -2024,7 +2073,7 @@ function handleAction(action, target) {
   }
 
   if (action === "watch-program") {
-    openProgramPlayer(target.dataset.channelId, Number(target.dataset.programIndex));
+    openProgramPlayer(target.dataset.channelId, Number(target.dataset.programIndex), target.dataset.returnMode || "program-details");
     return;
   }
 
@@ -2083,9 +2132,82 @@ function handleAction(action, target) {
   if (action === "start-call") {
     showToast(`Chamando ${target.dataset.contactName || "contato"}...`);
   }
+
+  if (action === "open-search") {
+    openSearch();
+    return;
+  }
+
+  if (action === "search-close") {
+    closeSearch();
+    return;
+  }
+}
+
+function openSearch() {
+  const overlay = document.getElementById("search-overlay");
+  const input = document.getElementById("search-input");
+  if (!overlay || !input) return;
+  overlay.setAttribute("aria-hidden", "false");
+  overlay.classList.add("is-active");
+  input.focus();
+}
+
+function closeSearch() {
+  const overlay = document.getElementById("search-overlay");
+  const results = document.getElementById("search-results");
+  if (!overlay) return;
+  overlay.setAttribute("aria-hidden", "true");
+  overlay.classList.remove("is-active");
+  if (results) results.innerHTML = "";
+}
+
+function performSearch(query) {
+  const q = String(query || "").trim().toLowerCase();
+  const resultsEl = document.getElementById("search-results");
+  if (!q) {
+    if (resultsEl) resultsEl.innerHTML = "";
+    return [];
+  }
+
+  const matches = [];
+  appState.channels.forEach((channel) => {
+    const schedule = getChannelProgramming(channel);
+    schedule.forEach((program, idx) => {
+      if (program.title && program.title.toLowerCase().includes(q)) {
+        matches.push({ channelId: channel.id, programIndex: idx, title: program.title, channelTitle: channel.title, image: program.image });
+      }
+    });
+  });
+
+  if (resultsEl) {
+    resultsEl.innerHTML = matches
+      .slice(0, 20)
+      .map((m) => `
+        <button class="search-result-item" data-action="select-program" data-return-mode="search" data-channel-id="${m.channelId}" data-program-index="${m.programIndex}">
+          <img src="${m.image}" alt="" />
+          <div class="search-result-meta">
+            <strong>${m.title}</strong>
+            <small>${m.channelTitle}</small>
+          </div>
+        </button>
+      `)
+      .join("");
+  }
+
+  // return matches for callers
+  return matches;
 }
 
 document.addEventListener("click", (event) => {
+  // Close search overlay if clicking outside search-shell
+  const overlay = document.getElementById("search-overlay");
+  const searchShell = overlay?.querySelector(".search-shell");
+  if (overlay?.classList.contains("is-active") && searchShell && !searchShell.contains(event.target)) {
+    closeSearch();
+    return;
+  }
+
   const target = event.target.closest("[data-action]");
   if (!target) {
     return;
@@ -2153,6 +2275,65 @@ window.addEventListener("popstate", () => {
 
   applyRouteStateFromUrl();
   renderDashboardContent();
+});
+
+// Search input handling: update results live; navigate to `search` only when
+// the user types the first character. If the input becomes empty again,
+// restore the previous active section.
+document.addEventListener("input", (ev) => {
+  const t = ev.target;
+  if (t && t.id === "search-input") {
+    const prev = String(appState.searchQuery || "").trim();
+    const curr = String(t.value || "").trim();
+
+    // always update the quick overlay results
+    performSearch(curr);
+
+    // typed first non-empty char -> navigate to search page and remember origin
+    if (prev === "" && curr !== "") {
+      appState._previousActiveSection = appState.activeSection;
+      appState.searchQuery = curr;
+      setSection("search");
+      renderDashboardContent();
+      window.setTimeout(() => document.getElementById("search-input")?.focus(), 40);
+      return;
+    }
+
+    // cleared the input -> restore previous section
+    if (prev !== "" && curr === "") {
+      const restore = appState._previousActiveSection || appState.activeSection || "inicio";
+      delete appState._previousActiveSection;
+      appState.searchQuery = "";
+      setSection(restore);
+      renderDashboardContent();
+      window.setTimeout(() => document.getElementById("search-input")?.focus(), 40);
+      return;
+    }
+
+    // normal in-place update
+    appState.searchQuery = curr;
+    if (appState.activeSection === "search") {
+      renderDashboardContent();
+    }
+  }
+});
+
+document.addEventListener("keydown", (ev) => {
+  const overlay = document.getElementById("search-overlay");
+  if (!overlay || overlay.getAttribute("aria-hidden") === "true") return;
+  if (ev.key === "Enter") {
+    ev.preventDefault();
+    const q = document.getElementById("search-input")?.value || "";
+    const matches = performSearch(q);
+    if (matches && matches.length) {
+      const first = matches[0];
+      openProgramDetails(first.channelId, first.programIndex, "search");
+      closeSearch();
+    }
+  }
+  if (ev.key === "Escape") {
+    closeSearch();
+  }
 });
 
 loadInitialData();

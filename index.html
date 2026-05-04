@@ -96,7 +96,7 @@
 					</span>
 					<span class="menu-item-label">Filmes</span>
 				</button>
-				<button class="menu-item menu-item-roadmap" data-focusable="true" data-action="section"
+				<button class="menu-item" data-focusable="true" data-action="section"
 					data-section="videoconferencia" aria-label="Videoconferencia">
 					<span class="menu-item-icon" aria-hidden="true">
 						<svg viewBox="0 0 24 24">
@@ -110,13 +110,19 @@
 			</nav>
 
 			<div class="header-actions">
-				<button class="search-btn" data-focusable="true" data-action="roadmap" data-feature="search"
-					aria-label="Abrir busca">
-					<svg viewBox="0 0 24 24" aria-hidden="true">
-						<circle cx="11" cy="11" r="7"></circle>
-						<line x1="16.65" y1="16.65" x2="21" y2="21"></line>
-					</svg>
-				</button>
+				<div id="search-overlay" class="search-overlay" aria-hidden="true">
+					<button class="search-btn search-trigger" data-focusable="true" data-action="open-search" data-feature="search"
+						aria-label="Abrir busca">
+						<svg viewBox="0 0 24 24" aria-hidden="true">
+							<circle cx="11" cy="11" r="7"></circle>
+							<line x1="16.65" y1="16.65" x2="21" y2="21"></line>
+						</svg>
+					</button>
+					<div class="search-shell">
+						<input id="search-input" type="text" placeholder="Pesquisar programas..." aria-label="Pesquisar programas" />
+						<button class="search-close-btn" data-action="search-close" aria-label="Fechar busca">✕</button>
+					</div>
+				</div>
 
 				<div class="profile-chip brand-profile-chip" data-focusable="true" data-action="roadmap"
 					data-feature="perfil-nuvem" role="button" tabindex="0" aria-label="Abrir perfil na nuvem">

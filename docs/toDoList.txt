@@ -1,2 +1,10 @@
-- Arrumar players pequenas features
-- Prosseguir com outras telas 
+- Arrumar btn Assistir Agora (program-watch-btn) do Slideshow, ao clicar no btn Assistir Agora ele deve abrir o player de video direto para assistir ao video respectivo ao card
+- Quando clico na setinha de voltar dos program-visual do Inicio ele volta para a parte de Canais, ele precisa voltar para a page respectiva ao program-visual
+- Fazer filtro de busca do Search para procurar program-visual respectivo ao que for digitado
+- Arrumar numeros do Top 10, precisa arrumar um jeito de fazer com que eles não fiquem invisiveis por conta do fundo, em alguns fundos mt brancos como os numeros são brancos também ele fica quase invisivel não dando para ver o numeros
+
+- Continue Assistindo do tela inicial deve puxar dados mockados ficticios de videos que já foram inciados para que o usuario continue de onde ele parou
+- O Minha Lista deve puxar dados mockados dos programas que ele marcar como Minha Lista (Estrela) para que fique salve não só na page mas o programa respectivo fique com a estrelinha do Minha Lista marcada
+- Criar funcionalidades do Perfil profile-chip brand-profile-chip ao clicar vai aparecer um popOver mostrando Perfis, Configurações, Conta, Ajuda e Assinatura
+
+- Fazer telas de ligação do Video conferencia(Tela de espera para ir para a chamada)
