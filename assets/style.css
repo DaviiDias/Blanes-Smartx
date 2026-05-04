@@ -229,6 +229,12 @@ body {
   gap: 0.5rem;
 }
 
+.profile-menu-wrap {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
 .search-btn {
   width: 44px;
   height: 44px;
@@ -813,6 +819,60 @@ h1 {
   opacity: 1;
   transform: scale(1);
   pointer-events: auto;
+}
+
+.program-resume {
+  display: grid;
+  gap: 0.25rem;
+}
+
+.profile-popover {
+  position: absolute;
+  top: calc(100% + 0.65rem);
+  right: 0;
+  width: min(240px, 72vw);
+  display: grid;
+  gap: 0.35rem;
+  padding: 0.45rem;
+  border-radius: 16px;
+  background: rgba(10, 12, 18, 0.96);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  box-shadow: 0 14px 40px rgba(0, 0, 0, 0.36);
+  opacity: 0;
+  pointer-events: none;
+  transform: translateY(-6px) scale(0.98);
+  transition: opacity 0.16s ease, transform 0.16s ease;
+  z-index: 12;
+}
+
+.profile-popover.is-open {
+  opacity: 1;
+  pointer-events: auto;
+  transform: translateY(0) scale(1);
+}
+
+.profile-popover-item {
+  width: 100%;
+  min-height: 40px;
+  padding: 0.65rem 0.8rem;
+  border: 0;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.03);
+  color: var(--ink);
+  text-align: left;
+  font: inherit;
+  cursor: pointer;
+  transition: background-color 0.16s ease, transform 0.16s ease;
+}
+
+.profile-popover-item:hover,
+.profile-popover-item:focus-visible {
+  outline: none;
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.profile-popover-item:active {
+  transform: translateY(1px);
 }
 
 .carousel-section {

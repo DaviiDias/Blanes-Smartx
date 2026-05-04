@@ -119,7 +119,12 @@ const appState = {
   watchlistProgramKeys: [],
   metrics: null,
   focusGroup: "menu",
-  focusIndex: 0
+  focusIndex: 0,
+  profilePopoverOpen: false
+};
+
+const storageKeys = {
+  watchlist: "smartx.watchlistProgramKeys"
 };
 
 let homeHeroAutoRotateTimer = null;
@@ -347,7 +352,7 @@ function getHomeFeaturedPrograms() {
 function getHomeRailsData() {
   const pool = getAllProgramsCatalog();
   const watchlistKeys = new Set(appState.watchlistProgramKeys);
-  const continueWatching = [...pool].sort((a, b) => Number(b.program.status === "live") - Number(a.program.status === "live")).slice(0, 14);
+  const continueWatching = createInitialMockContinueWatching(pool);
   const minhaLista = getWatchlistPrograms().map((item) => ({
     channelId: item.channelId,
     channelTitle: item.channel.title,
@@ -382,7 +387,7 @@ function getHomeRailsData() {
   };
 }
 
-function renderHomeRailSection({ id, title, items, isTop10 = false }) {
+function renderHomeRailSection({ id, title, items, isTop10 = false, cardOptions = {} }) {
   if (!items.length) {
     return "";
   }
@@ -416,7 +421,8 @@ function renderHomeRailSection({ id, title, items, isTop10 = false }) {
             programIndex: item.programIndex,
             isSelected: false,
             showStatus: false,
-            returnMode: "inicio"
+            returnMode: "inicio",
+            ...cardOptions
           })
         )
         .join("");
@@ -504,7 +510,7 @@ function renderHomeSection() {
       </section>
 
       <section class="home-rails">
-        ${renderHomeRailSection({ id: "home-continue", title: "Continue assistindo", items: rails.continueWatching })}
+        ${renderHomeRailSection({ id: "home-continue", title: "Continue assistindo", items: rails.continueWatching, cardOptions: { showProgress: true } })}
         ${renderHomeRailSection({ id: "home-my-list", title: "Minha Lista", items: rails.minhaLista })}
         ${renderHomeRailSection({ id: "home-recommended", title: "Recomendados", items: rails.recomendados })}
         ${renderHomeRailSection({ id: "home-top10", title: "Top 10 filmes de hoje", items: rails.top10, isTop10: true })}
@@ -717,9 +723,17 @@ function getChannelProgramming(channel) {
   ];
 }
 
-function renderProgramCard({ channelId, program, programIndex, isSelected, showStatus = true, returnMode = "" }) {
+function renderProgramCard({ channelId, program, programIndex, isSelected, showStatus = true, showProgress = false, returnMode = "" }) {
   const statusClass = program.status === "live" ? "is-live" : "is-soon";
-  const progressMarkup = showStatus && program.status === "live" ? `<progress class="program-progress" max="100" value="${program.progress || 0}"></progress>` : "";
+  const progressMarkup = showProgress && Number.isFinite(program.resumeProgress)
+    ? `
+          <div class="program-resume">
+            <progress class="program-progress" max="100" value="${program.resumeProgress}"></progress>
+          </div>
+        `
+    : showStatus && program.status === "live"
+      ? `<progress class="program-progress" max="100" value="${program.progress || 0}"></progress>`
+      : "";
   const statusMarkup = showStatus ? `<span class="program-status ${statusClass}">${program.statusLabel}</span>` : "";
   const selectedClass = isSelected ? "is-selected" : "";
 
@@ -999,6 +1013,24 @@ function getProgramKey(channelId, programIndex) {
   return `${channelId}::${programIndex}`;
 }
 
+function readPersistedWatchlistKeys() {
+  try {
+    const raw = window.localStorage.getItem(storageKeys.watchlist);
+    const parsed = raw ? JSON.parse(raw) : [];
+    return Array.isArray(parsed) ? parsed.filter((item) => typeof item === "string") : [];
+  } catch (error) {
+    return [];
+  }
+}
+
+function persistWatchlistKeys() {
+  try {
+    window.localStorage.setItem(storageKeys.watchlist, JSON.stringify(appState.watchlistProgramKeys));
+  } catch (error) {
+    // Ignore storage failures in restricted browser sessions.
+  }
+}
+
 function isProgramInWatchlist(channelId, programIndex) {
   return appState.watchlistProgramKeys.includes(getProgramKey(channelId, programIndex));
 }
@@ -1009,10 +1041,12 @@ function toggleProgramInWatchlist(channelId, programIndex) {
 
   if (exists) {
     appState.watchlistProgramKeys = appState.watchlistProgramKeys.filter((item) => item !== key);
+    persistWatchlistKeys();
     return false;
   }
 
   appState.watchlistProgramKeys = [...appState.watchlistProgramKeys, key];
+  persistWatchlistKeys();
   return true;
 }
 
@@ -1023,6 +1057,26 @@ function createInitialMockWatchlist(channels) {
       const schedule = getChannelProgramming(channel);
       return schedule.slice(0, 3).map((_, index) => getProgramKey(channel.id, index));
     });
+}
+
+function createInitialMockContinueWatching(pool) {
+  if (!pool.length) {
+    return [];
+  }
+
+  const progressValues = [18, 42, 67, 29, 53, 76];
+  return pool.slice(0, 6).map((item, index) => ({
+    channelId: item.channelId,
+    channelTitle: item.channelTitle,
+    channelGenre: item.channelGenre,
+    programIndex: item.programIndex,
+    program: {
+      ...item.program,
+      resumeProgress: progressValues[index % progressValues.length],
+      resumeLabel: `Continue assistindo`
+    },
+    genreLabel: item.genreLabel
+  }));
 }
 
 function getWatchlistPrograms() {
@@ -2021,7 +2075,21 @@ async function loadInitialData() {
     appState.channels = channels;
     appState.selectedChannelId = channels[0]?.id || null;
     initializeProgramSelections(channels);
-    appState.watchlistProgramKeys = createInitialMockWatchlist(channels);
+    const persistedWatchlist = readPersistedWatchlistKeys();
+    const validWatchlist = persistedWatchlist.filter((key) => {
+      const [channelId, rawIndex] = key.split("::");
+      const channel = channels.find((item) => item.id === channelId);
+      if (!channel) {
+        return false;
+      }
+
+      const programIndex = Number(rawIndex);
+      const schedule = getChannelProgramming(channel);
+      return Number.isInteger(programIndex) && programIndex >= 0 && programIndex < schedule.length;
+    });
+
+    appState.watchlistProgramKeys = validWatchlist.length ? validWatchlist : createInitialMockWatchlist(channels);
+    persistWatchlistKeys();
     appState.metrics = metrics;
     appState.status = "ready";
 
@@ -2129,6 +2197,17 @@ function handleAction(action, target) {
     return;
   }
 
+  if (action === "open-profile") {
+    toggleProfilePopover();
+    return;
+  }
+
+  if (action === "profile-item") {
+    showToast(target.dataset.profileItem || "Perfil aberto.");
+    closeProfilePopover();
+    return;
+  }
+
   if (action === "start-call") {
     showToast(`Chamando ${target.dataset.contactName || "contato"}...`);
   }
@@ -2151,6 +2230,37 @@ function openSearch() {
   overlay.setAttribute("aria-hidden", "false");
   overlay.classList.add("is-active");
   input.focus();
+}
+
+function openProfilePopover() {
+  const popover = document.getElementById("profile-popover");
+  if (!popover) {
+    return;
+  }
+
+  popover.classList.add("is-open");
+  popover.setAttribute("aria-hidden", "false");
+  appState.profilePopoverOpen = true;
+}
+
+function closeProfilePopover() {
+  const popover = document.getElementById("profile-popover");
+  if (!popover) {
+    return;
+  }
+
+  popover.classList.remove("is-open");
+  popover.setAttribute("aria-hidden", "true");
+  appState.profilePopoverOpen = false;
+}
+
+function toggleProfilePopover() {
+  if (appState.profilePopoverOpen) {
+    closeProfilePopover();
+    return;
+  }
+
+  openProfilePopover();
 }
 
 function closeSearch() {
@@ -2205,7 +2315,11 @@ document.addEventListener("click", (event) => {
   const searchShell = overlay?.querySelector(".search-shell");
   if (overlay?.classList.contains("is-active") && searchShell && !searchShell.contains(event.target)) {
     closeSearch();
-    return;
+  }
+
+  const profileWrap = document.querySelector(".profile-menu-wrap");
+  if (appState.profilePopoverOpen && profileWrap && !profileWrap.contains(event.target)) {
+    closeProfilePopover();
   }
 
   const target = event.target.closest("[data-action]");

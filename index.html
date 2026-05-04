@@ -124,10 +124,19 @@
 					</div>
 				</div>
 
-				<div class="profile-chip brand-profile-chip" data-focusable="true" data-action="roadmap"
-					data-feature="perfil-nuvem" role="button" tabindex="0" aria-label="Abrir perfil na nuvem">
-					<p class="profile-name">Davi</p>
-					<img src="./assets/img/profile.webp" alt="Avatar de Davi" />
+				<div class="profile-menu-wrap">
+					<div class="profile-chip brand-profile-chip" data-focusable="true" data-action="open-profile"
+						role="button" tabindex="0" aria-label="Abrir menu de perfil">
+						<p class="profile-name">Davi</p>
+						<img src="./assets/img/profile.webp" alt="Avatar de Davi" />
+					</div>
+					<div id="profile-popover" class="profile-popover" aria-hidden="true">
+						<button class="profile-popover-item" data-action="profile-item" data-profile-item="Perfis">Perfis</button>
+						<button class="profile-popover-item" data-action="profile-item" data-profile-item="Configurações">Configurações</button>
+						<button class="profile-popover-item" data-action="profile-item" data-profile-item="Conta">Conta</button>
+						<button class="profile-popover-item" data-action="profile-item" data-profile-item="Ajuda">Ajuda</button>
+						<button class="profile-popover-item" data-action="profile-item" data-profile-item="Assinatura">Assinatura</button>
+					</div>
 				</div>
 			</div>
 		</header>
